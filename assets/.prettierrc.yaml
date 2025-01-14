@@ -1,0 +1,21 @@
+trailingComma: "es5"
+tabWidth: 2
+semi: false
+singleQuote: true
+
+overrides:
+  - files: "*.test.js"
+    options:
+      semi: true
+  - files:
+      - "*.html"
+      - "legacy/**/*.js"
+    options:
+      tabWidth: 4
+  - files: "*.svelte"
+    options:
+      parser: "svelte"
+      semi: false
+      singleQuote: true
+      bracketSpacing: true
+      arrowParens: "always"
