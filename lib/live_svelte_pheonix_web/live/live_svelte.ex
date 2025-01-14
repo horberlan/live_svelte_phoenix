@@ -4,16 +4,16 @@ defmodule LiveSveltePheonixWeb.SvelteLive do
 
   def render(assigns) do
     ~H"""
-    <.Editor number={@number} socket={@socket} />
+    <.Editor number={@number} socket={@socket} content={@content} />
     """
   end
 
   def handle_event("content_updated", %{"content" => content}, socket) do
+    IO.inspect(content, label: "content")
     {:noreply, assign(socket, :content, content)}
   end
 
-  @spec mount(any(), any(), map()) :: {:ok, map()}
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, :number, 5) |> assign(:content, "")}
+    {:ok, assign(socket, :number, 5) |> assign(:content, "<h2>lorem ipsum dolor</h2> <p>amet...</p>")}
   end
 end

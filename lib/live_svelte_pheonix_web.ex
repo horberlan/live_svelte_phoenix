@@ -54,6 +54,7 @@ defmodule LiveSveltePheonixWeb do
       use Phoenix.LiveView,
         layout: {LiveSveltePheonixWeb.Layouts, :app}
 
+      import LiveSvelte
       unquote(html_helpers())
     end
   end
