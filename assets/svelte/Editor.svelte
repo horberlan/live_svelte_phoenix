@@ -1,6 +1,5 @@
 <script>
-  // import BubbleMenuComponent from './menus_editor/BubbleMenu.svelte'
-
+  import BubbleMenuComponent from './menus_editor/BubbleMenu.svelte'
   import { onMount, onDestroy } from 'svelte'
   import { Editor } from '@tiptap/core'
   import BubbleMenu from '@tiptap/extension-bubble-menu'
@@ -48,8 +47,6 @@
   ]
 
   onMount(() => {
-    // console.log('debug socket ====>', live)
-
     editor = new Editor({
       element: element,
       extensions: [
@@ -67,6 +64,8 @@
       content,
       onTransaction: () => {
         editor = editor
+      },
+      onUpdate: ({ editor }) => {
         live.pushEvent('content_updated', { content: editor.getHTML() })
       },
     })
@@ -79,6 +78,7 @@
   })
 </script>
 
+<BubbleMenuComponent {editor} {bubbleMenuItems} />
 <div
   class="flex gap-2 bg-gray-100 p-2 rounded-lg shadow-sm w-full"
   bind:this={bubbleMenu}
@@ -99,4 +99,3 @@
 </div>
 
 <div bind:this={element} />
-<!-- <BubbleMenuComponent editor={editor} bubbleMenu={bubbleMenu} /> -->
