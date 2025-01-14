@@ -1,6 +1,4 @@
 <script>
-  import BubbleMenu from '@tiptap/extension-bubble-menu'
-
   export let editor
   export let bubbleMenu
 
@@ -36,10 +34,6 @@
       command: () => editor.chain().focus().toggleItalic().run(),
     },
   ]
-
-  // BubbleMenu.configure({
-  //  element: bubbleMenu,
-  // }),
 </script>
 
 <div
@@ -51,17 +45,10 @@
       <button
         on:click={item.command}
         class:active={editor.isActive(item.active())}
-        class="bg-gray-200 px-2 py-1 rounded-md hover:bg-gray-300 focus:outline-none"
-      >
-        {item.label}
-      </button>
+        class="
+        {editor.isActive(item.active()) ? 'bg-black text-white' : 'bg-gray-200'}
+        px-2 py-1 rounded-md hover:bg-gray-300 focus:outline-none"
+      > {item.label}</button>
     {/each}
   {/if}
 </div>
-
-<style>
-  button.active {
-    background: black;
-    color: white;
-  }
-</style>
