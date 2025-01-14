@@ -1,5 +1,6 @@
 defmodule LiveSveltePheonixWeb.Router do
   use LiveSveltePheonixWeb, :router
+  import Phoenix.LiveView.Router
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -18,6 +19,8 @@ defmodule LiveSveltePheonixWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    live "/svelte", SvelteLive
   end
 
   # Other scopes may use custom stacks.

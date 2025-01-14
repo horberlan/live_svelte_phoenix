@@ -70,7 +70,7 @@ defmodule LiveSveltePheonix.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
+      setup: ["deps.get", "ecto.setup", "cmd --cd assets npm install"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
@@ -83,7 +83,7 @@ defmodule LiveSveltePheonix.MixProject do
       # ],
       "assets.deploy": [
         "tailwind live_svelte_pheonix --minify",
-        "cd assets && node build.js --deploy",
+        "cmd --cd assets node build.js --deploy",
         "phx.digest"
       ]
     ]
