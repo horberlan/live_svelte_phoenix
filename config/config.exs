@@ -15,6 +15,7 @@ config :live_svelte_pheonix,
 config :live_svelte_pheonix, LiveSveltePheonixWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
+  pubsub_server: LiveSveltePheonix.PubSub,
   render_errors: [
     formats: [html: LiveSveltePheonixWeb.ErrorHTML, json: LiveSveltePheonixWeb.ErrorJSON],
     layout: false
