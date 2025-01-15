@@ -17,9 +17,7 @@ defmodule LiveSveltePheonix.Session do
   end
 
   def update_content(session_id, content) do
-    session = LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id)
-
-    session
+    LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id)
     |> changeset(%{content: content})
     |> LiveSveltePheonix.Repo.update!()
   end

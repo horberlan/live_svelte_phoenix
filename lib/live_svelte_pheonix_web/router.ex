@@ -21,6 +21,7 @@ defmodule LiveSveltePheonixWeb.Router do
     # get "/", PageController, :home
 
     live "/", CreateSession
+    live "/session", CreateSession
     live "/session/:session_id", SessionLive
   end
 
