@@ -7,7 +7,6 @@
 
   let element
   let editor
-
   let bubbleMenu
 
   export let content
@@ -45,6 +44,14 @@
       command: () => editor.chain().focus().toggleItalic().run(),
     },
   ]
+  let updateTimeout
+
+  function debounceUpdate(newContent) {
+    clearTimeout(updateTimeout)
+    updateTimeout = setTimeout(() => {
+      live.pushEvent('content_updated', { content: newContent })
+    }, 50)
+  }
 
   onMount(() => {
     editor = new Editor({
@@ -66,8 +73,15 @@
         editor = editor
       },
       onUpdate: ({ editor }) => {
-        live.pushEvent('content_updated', { content: editor.getHTML() })
+        const newContent = editor.getHTML()
+        debounceUpdate(newContent)
       },
+    })
+
+    live.handleEvent('remote_content_updated', (data) => {
+      if (editor && data.content !== editor.getHTML()) {
+        editor.commands.setContent(data.content, false)
+      }
     })
   })
 
@@ -79,23 +93,25 @@
 </script>
 
 <BubbleMenuComponent {editor} {bubbleMenuItems} />
-<div
-  class="flex gap-2 bg-gray-100 p-2 rounded-lg shadow-sm w-full"
-  bind:this={bubbleMenu}
->
-  {#if editor}
-    {#each bubbleMenuItems as item}
-      <button
-        on:click={item.command}
-        class:active={editor.isActive(item.active())}
-        class="
+{#if bubbleMenuItems.length > 0}
+  <div
+    class="flex gap-2 bg-gray-100 p-2 rounded-lg shadow-sm w-full"
+    bind:this={bubbleMenu}
+  >
+    {#if editor}
+      {#each bubbleMenuItems as item}
+        <button
+          on:click={item.command}
+          class:active={editor.isActive(item.active())}
+          class="
         {editor.isActive(item.active()) ? 'bg-black text-white' : 'bg-gray-200'}
         px-2 py-1 rounded-md hover:bg-gray-300 focus:outline-none"
-      >
-        {item.label}
-      </button>
-    {/each}
-  {/if}
-</div>
+        >
+          {item.label}</button
+        >
+      {/each}
+    {/if}
+  </div>
+{/if}
 
 <div bind:this={element} />

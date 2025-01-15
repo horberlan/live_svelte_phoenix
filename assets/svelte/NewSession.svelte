@@ -1,6 +1,4 @@
 <script>
-  export let live;
-
   let intl = {
     btn_create: 'New note +',
   }
