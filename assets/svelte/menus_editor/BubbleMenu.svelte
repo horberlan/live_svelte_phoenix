@@ -11,8 +11,8 @@
           on:click={item.command}
           class:active={editor.isActive(item.active())}
           class="
-        {editor.isActive(item.active()) ? 'bg-black text-white' : 'bg-gray-200'}
-        px-2 py-1 rounded-md hover:bg-gray-300 focus:outline-none"
+        {editor.isActive(item.active()) ? 'bg-neutral text-base-100 hover:bg-neutral' : 'bg-base-200'}
+        px-2 py-1 rounded-md hover:bg-base-300 focus:outline-none"
         >
           {item.label}</button
         >

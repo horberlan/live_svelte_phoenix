@@ -9,8 +9,8 @@ defmodule LiveSveltePheonixWeb.SessionLive do
 
   def render(assigns) do
     ~H"""
-    <main class="container mx-auto">
-      <h1 class="text-center text-gray-200">session_id: {@session_id}</h1>
+    <main class="container p-2 rounded-md mx-auto bg-neutral-100">
+      <h1 class="text-center text-base-200">session_id: {@session_id}</h1>
       <.Editor socket={@socket} content={@content} session_id={@session_id} />
     </main>
     """
@@ -39,7 +39,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
       self(),
       "session:#{session_id}",
       {:content_updated, content}
-      ) # <- sand, except for de sandler, a broadcast to all subscribers
+      ) # <- sand, except for de sandler, broadcast to all subscribers
 
     {:noreply, assign(socket, :content, content)}
   end
