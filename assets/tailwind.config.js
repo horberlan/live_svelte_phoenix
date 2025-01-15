@@ -69,6 +69,8 @@ module.exports = {
     })
   ],
   daisyui: {
-    themes: [ "cmyk" ],
+    // retro
+    // dark
+    themes: [ "nord" ],
   },
 }

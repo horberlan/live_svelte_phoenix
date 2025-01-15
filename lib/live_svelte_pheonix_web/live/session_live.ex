@@ -9,7 +9,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
 
   def render(assigns) do
     ~H"""
-    <main class="container p-2 rounded-md mx-auto bg-neutral-100">
+    <main class="container p-2 rounded-md mx-auto bg-neutral-100 mb-4">
       <h1 class="text-center text-base-200">session_id: {@session_id}</h1>
       <.Editor socket={@socket} content={@content} session_id={@session_id} />
     </main>
@@ -29,10 +29,11 @@ defmodule LiveSveltePheonixWeb.SessionLive do
      |> assign(:content, session.content || @default_editor_content)}
   end
 
+  @spec handle_event(<<_::120>>, map(), map()) :: {:noreply, map()}
   def handle_event("content_updated", %{"content" => content}, socket) do
     session_id = socket.assigns.session_id
 
-    Session.update_content(session_id, content)
+    session_id |> Session.update_content(content)
 
     Phoenix.PubSub.broadcast_from(
       LiveSveltePheonix.PubSub,

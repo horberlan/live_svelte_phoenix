@@ -65,7 +65,7 @@
       editorProps: {
         attributes: {
           class:
-            'prose prose-sm sm:prose-base lg:prose-lg xl:prose-2xl m-5 focus:outline-none bg-white shadow-md p-4 rounded-lg',
+            'prose prose-sm sm:prose-base m-5 p-4 focus:outline-none bg-white shadow-md rounded-lg',
         },
       },
       content,
@@ -95,7 +95,7 @@
 <BubbleMenuComponent {editor} {bubbleMenuItems} />
 {#if bubbleMenuItems.length > 0}
   <div
-    class="flex gap-2 bg-base-100 p-2 rounded-lg shadow-sm w-full"
+    class="flex gap-2 bg-base-100 p-2 rounded-lg shadow-sm"
     bind:this={bubbleMenu}
   >
     {#if editor}
@@ -116,4 +116,4 @@
   </div>
 {/if}
 
-<div bind:this={element} />
+<div bind:this={element} class="w-full" />
