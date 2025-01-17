@@ -3,7 +3,7 @@ import Config
 # Configure your database
 config :live_svelte_pheonix, LiveSveltePheonix.Repo,
   username: "postgres",
-  password: "postgres",
+  password: "password",
   hostname: "localhost",
   database: "live_svelte_pheonix_dev",
   stacktrace: true,

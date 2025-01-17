@@ -1,13 +1,16 @@
 {
   "devDependencies": {
+    "autoprefixer": "^10.4.20",
     "daisyui": "^4.12.23",
     "esbuild": "^0.24.2",
     "esbuild-plugin-import-glob": "^0.1.1",
     "esbuild-svelte": "^0.9.0",
+    "postcss": "^8.5.1",
     "prettier": "^3.4.2",
     "prettier-plugin-svelte": "^3.3.3",
     "svelte": "^4.2.19",
-    "svelte-preprocess": "^6.0.3"
+    "svelte-preprocess": "^6.0.3",
+    "tailwindcss": "^3.4.17"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.16",
@@ -18,11 +21,12 @@
     "@tiptap/extension-floating-menu": "^2.11.2",
     "@tiptap/pm": "^2.11.2",
     "@tiptap/starter-kit": "^2.11.2",
+    "@web3-onboard/core": "^2.24.0",
+    "@web3-onboard/phantom": "^2.1.1",
     "live_svelte": "file:../deps/live_svelte",
     "phoenix": "file:../deps/phoenix",
     "phoenix_html": "file:../deps/phoenix_html",
     "phoenix_live_view": "file:../deps/phoenix_live_view",
-    "y-webrtc": "^10.3.0",
-    "yjs": "^13.6.22"
+    "svelte-wagmi": "^1.0.7"
   }
 }

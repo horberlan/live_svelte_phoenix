@@ -1,6 +1,7 @@
 defmodule LiveSveltePheonixWeb.CreateSession do
   use LiveSveltePheonixWeb, :live_view
   use LiveSvelte.Components
+
   alias LiveSveltePheonix.Repo
   alias LiveSveltePheonix.Session
   alias LiveSveltePheonix.User
@@ -13,31 +14,36 @@ defmodule LiveSveltePheonixWeb.CreateSession do
 
   def handle_event("new_session", _params, socket) do
     session_id = :crypto.strong_rand_bytes(32) |> Base.encode32()
-    create_session(session_id)
-    push_to_session(session_id, socket)
-  end
-
-  def create_session(session_id) do
-    user = Repo.get_by(User, username: "user_id")
-
-    if user do # maybe ill use guard
-      %Session{
-        user_id: user.id,
-        session_id: session_id,
-        content: nil,
-        shared_users: []
-      }
-      |> Session.changeset(%{user_id: user.id, session_id: session_id, content: nil, shared_users: []})
-      |> Repo.insert!()
-
-      user
-      |> User.changeset(%{active_session: session_id})
-      |> Repo.update!()
-    else
-      raise "User not found"
-    end
 
     session_id
+    |> create_session("user_id")
+    |> push_to_session(socket)
+  end
+
+  def create_session(session_id, user_id) do
+    with %User{} = user <- Repo.get_by(User, username: user_id) do
+      {:ok, _session} = %Session{
+          user_id: user.id,
+          session_id: session_id,
+          content: nil,
+          shared_users: []
+        }
+        |> Session.changeset(%{
+          user_id: user.id,
+          session_id: session_id,
+          content: nil,
+          shared_users: []
+        })
+        |> Repo.insert()
+
+      {:ok, _user} = user
+        |> User.changeset(%{active_session: session_id})
+        |> Repo.update()
+
+      session_id
+    else
+      nil -> raise "User not found"
+    end
   end
 
   def push_to_session(session_id, socket),

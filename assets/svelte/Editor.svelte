@@ -1,16 +1,16 @@
 <script>
-  import BubbleMenuComponent from './menus_editor/BubbleMenu.svelte'
-  import { onMount, onDestroy } from 'svelte'
-  import { Editor } from '@tiptap/core'
-  import BubbleMenu from '@tiptap/extension-bubble-menu'
-  import StarterKit from '@tiptap/starter-kit'
+  import BubbleMenuComponent from './menus_editor/BubbleMenu.svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import { Editor } from '@tiptap/core';
+  import BubbleMenu from '@tiptap/extension-bubble-menu';
+  import StarterKit from '@tiptap/starter-kit';
 
-  let element
-  let editor
-  let bubbleMenu
+  let element;
+  let editor;
+  let bubbleMenu;
 
-  export let content
-  export let live
+  export let content;
+  export let live;
 
   let bubbleMenuItems = [
     {
@@ -43,14 +43,14 @@
       active: () => 'italic',
       command: () => editor.chain().focus().toggleItalic().run(),
     },
-  ]
-  let updateTimeout
+  ];
+  let updateTimeout;
 
   function debounceUpdate(newContent) {
-    clearTimeout(updateTimeout)
+    clearTimeout(updateTimeout);
     updateTimeout = setTimeout(() => {
-      live.pushEvent('content_updated', { content: newContent })
-    }, 50)
+      live.pushEvent('content_updated', { content: newContent });
+    }, 50);
   }
 
   onMount(() => {
@@ -70,26 +70,26 @@
       },
       content,
       onTransaction: () => {
-        editor = editor
+        editor = editor;
       },
       onUpdate: ({ editor }) => {
-        const newContent = editor.getHTML()
-        debounceUpdate(newContent)
+        const newContent = editor.getHTML();
+        debounceUpdate(newContent);
       },
-    })
+    });
 
     live.handleEvent('remote_content_updated', (data) => {
       if (editor && data.content !== editor.getHTML()) {
-        editor.commands.setContent(data.content, false)
+        editor.commands.setContent(data.content, false);
       }
-    })
-  })
+    });
+  });
 
   onDestroy(() => {
     if (editor) {
-      editor.destroy()
+      editor.destroy();
     }
-  })
+  });
 </script>
 
 <BubbleMenuComponent {editor} {bubbleMenuItems} />

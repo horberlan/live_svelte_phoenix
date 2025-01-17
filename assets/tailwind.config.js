@@ -10,7 +10,8 @@ module.exports = {
     "./js/**/*.js",
     "../lib/live_svelte_pheonix_web.ex",
     "../lib/live_svelte_pheonix_web/**/*.*ex",
-    "./svelte/**/*.svelte"
+    "./svelte/**/*.svelte",
+    "./css/**/*.css"
   ],
   plugins: [
     require("@tailwindcss/forms"),
