@@ -29,7 +29,6 @@ defmodule LiveSveltePheonixWeb.SessionLive do
      |> assign(:content, session.content || @default_editor_content)}
   end
 
-  @spec handle_event(<<_::120>>, map(), map()) :: {:noreply, map()}
   def handle_event("content_updated", %{"content" => content}, socket) do
     session_id = socket.assigns.session_id
 
