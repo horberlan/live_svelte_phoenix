@@ -34,7 +34,7 @@ live_svelte_pheonix-*.tar
 # In case you use Node.js/npm, you want to ignore these.
 npm-debug.log
 /assets/node_modules/
-
+/priv/cert*
 
 # Ignore automatically generated Svelte files by the ~V sigil
 /assets/svelte/_build/

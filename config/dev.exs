@@ -29,7 +29,15 @@ config :live_svelte_pheonix, LiveSveltePheonixWeb.Endpoint,
     # esbuild: {Esbuild, :install_and_run, [:live_svelte_pheonix, ~w(--sourcemap=inline --watch)]},
     tailwind: {Tailwind, :install_and_run, [:live_svelte_pheonix, ~w(--watch)]}
   ]
-
+  config :live_svelte_pheonix, LiveSveltePheonixWeb.Endpoint,
+  http: [port: 4000],
+  https: [
+    port: 4001,
+    cipher_suite: :strong,
+    certfile: "priv/cert/selfsigned.pem",
+    keyfile: "priv/cert/selfsigned_key.pem"
+  ]
+  Logger.put_module_level(:ssl_alert, :error)
 # ## SSL Support
 #
 # In order to use HTTPS in development, a self-signed
