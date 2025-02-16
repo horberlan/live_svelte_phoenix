@@ -6,12 +6,13 @@ import Config
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
 config :live_svelte_pheonix, LiveSveltePheonix.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
+  username: System.fetch_env!("PGUSER"),
+  password: System.fetch_env!("PGPASSWORD"),
+  hostname: System.fetch_env!("PGHOST"),
   database: "live_svelte_pheonix_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+  pool_size: System.schedulers_online() * 2,
+  ssl: [cacerts: :public_key.cacerts_get()]
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.

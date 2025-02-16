@@ -1,3 +1,4 @@
+.env
 # The directory Mix will write compiled artifacts to.
 /_build/
 
@@ -41,3 +42,4 @@ npm-debug.log
 
 # Ignore ssr build for svelte.
 /priv/svelte/
+/priv/cert/
