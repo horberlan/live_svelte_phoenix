@@ -1,0 +1,33 @@
+name: Generate Changelog on PR
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  generate-changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: List Commits
+        id: commits
+        run: |
+          COMMITS=$(git log --pretty=format:"- %s" origin/${{ github.base_ref }}..origin/${{ github.head_ref }})
+          echo "commits=$COMMITS" >> $GITHUB_OUTPUT
+
+      - name: Update PR Description
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              body: `## Changelog\n${process.env.COMMITS}\n\n${context.payload.pull_request.body}`
+            });
+          env:
+            COMMITS: ${{ steps.commits.outputs.commits }}
