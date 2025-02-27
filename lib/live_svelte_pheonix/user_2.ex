@@ -2,7 +2,7 @@ defmodule LiveSveltePheonix.User do
   use Ecto.Schema
   import Ecto.Changeset
 
-  schema "users" do
+  schema "users_2" do
     field :username, :string
     field :active_session, :string
 

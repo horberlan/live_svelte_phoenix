@@ -6,7 +6,8 @@ defmodule LiveSveltePheonix.Session do
     field :session_id, :string
     field :content, :string
     field :shared_users, {:array, :string}
-    belongs_to :user, LiveSveltePheonix.User
+    belongs_to :user, LiveSveltePheonix.Accounts.User
+
     timestamps()
   end
 
@@ -19,6 +20,14 @@ defmodule LiveSveltePheonix.Session do
   def update_content(session_id, content) do
     LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id)
     |> changeset(%{content: content})
+    |> LiveSveltePheonix.Repo.update!()
+  end
+  def update_shared_users(session_id, user_email) do
+    this_session = LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id)
+    updated_shared_users = (this_session.shared_users || []) ++ [user_email]
+
+    this_session
+    |> changeset(%{shared_users: updated_shared_users})
     |> LiveSveltePheonix.Repo.update!()
   end
 end

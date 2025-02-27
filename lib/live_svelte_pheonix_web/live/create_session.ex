@@ -1,43 +1,53 @@
 defmodule LiveSveltePheonixWeb.CreateSession do
   use LiveSveltePheonixWeb, :live_view
   use LiveSvelte.Components
-  alias LiveSveltePheonix.Repo
-  alias LiveSveltePheonix.Session
-  alias LiveSveltePheonix.User
+  alias LiveSveltePheonix.{Repo, Session}
+
+  on_mount {LiveSveltePheonixWeb.UserAuth, :ensure_authenticated}
 
   def render(assigns) do
     ~H"""
-    <.NewSession socket={@socket} />
+    <.NewSession socket={@socket} current_user={@current_user} />
     """
   end
 
-  def handle_event("new_session", _params, socket) do
+  def handle_event("new_session", _params, %{assigns: %{current_user: user}} = socket) do
     session_id = :crypto.strong_rand_bytes(32) |> Base.encode32()
-    create_session(session_id)
-    push_to_session(session_id, socket)
+
+    case create_session(user, session_id) do
+      {:ok, _} -> push_to_session(session_id, socket)
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to create session")}
+    end
   end
 
-  def create_session(session_id) do
-    user = Repo.get_by(User, username: "user_id")
+  defp create_session(user, session_id) do
+    Repo.transaction(fn ->
+      session_changeset =
+        %Session{
+          user_id: user.id,
+          session_id: session_id,
+          content: nil,
+          shared_users: []
+        }
+        |> Session.changeset(%{})
 
-    if user do # maybe ill use guard
-      %Session{
-        user_id: user.id,
-        session_id: session_id,
-        content: nil,
-        shared_users: []
-      }
-      |> Session.changeset(%{user_id: user.id, session_id: session_id, content: nil, shared_users: []})
-      |> Repo.insert!()
+      case Repo.insert(session_changeset) do
+        {:ok, session} ->
+          user_changeset = Ecto.Changeset.change(user, active_session: session_id)
 
-      user
-      |> User.changeset(%{active_session: session_id})
-      |> Repo.update!()
-    else
-      raise "User not found"
+          case Repo.update(user_changeset) do
+            {:ok, _user} -> session
+            {:error, _changeset} -> Repo.rollback(:user_update_failed)
+          end
+
+        {:error, _changeset} ->
+          Repo.rollback(:session_creation_failed)
+      end
+    end)
+    |> case do
+      {:ok, session} -> {:ok, session}
+      {:error, reason} -> {:error, "Failed to create session: #{reason}"}
     end
-
-    session_id
   end
 
   def push_to_session(session_id, socket),

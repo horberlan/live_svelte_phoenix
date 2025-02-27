@@ -3,12 +3,13 @@ defmodule LiveSveltePheonix.Repo.Migrations.CreateUsers do
 
   def change do
     create table(:users) do
-      add :username, :string
-      add :active_session, :string
-
+      add :email, :citext, null: false
+      add :hashed_password, :string, null: false
+      add :active_session, :string, null: true
+      add :confirmed_at, :naive_datetime
       timestamps()
     end
 
-    create unique_index(:users, [:username])
+    create unique_index(:users, [:email])
   end
 end
