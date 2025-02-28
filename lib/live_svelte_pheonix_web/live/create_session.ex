@@ -1,13 +1,16 @@
 defmodule LiveSveltePheonixWeb.CreateSession do
   use LiveSveltePheonixWeb, :live_view
   use LiveSvelte.Components
+  use Timex
+
   alias LiveSveltePheonix.{Repo, Session}
+  import Ecto.Query
 
   on_mount {LiveSveltePheonixWeb.UserAuth, :ensure_authenticated}
 
   def render(assigns) do
     ~H"""
-    <.NewSession socket={@socket} current_user={@current_user} />
+    <.NewSession socket={@socket} current_user={@current_user} user_sessions={@user_sessions} />
     """
   end
 
@@ -49,13 +52,43 @@ defmodule LiveSveltePheonixWeb.CreateSession do
       {:error, reason} -> {:error, "Failed to create session: #{reason}"}
     end
   end
+def user_sessions(user_email) do
+  import Ecto.Query
+
+  case Repo.get_by(LiveSveltePheonix.Accounts.User, email: user_email) do
+    nil -> []
+    user ->
+      query =
+        from s in Session,
+          where: s.user_id == ^user.id or fragment("? = ANY(shared_users)", ^user_email)
+
+      Repo.all(query)
+      |> Enum.map(&format_session_with_timex/1)
+  end
+end
+
+defp format_session_with_timex(session) do
+  {:ok, inserted_at} = Timex.shift(session.inserted_at, minutes: 0) |> Timex.format("{relative}", :relative)
+  {:ok, updated_at} = Timex.shift(session.updated_at, minutes: 0) |> Timex.format("{relative}", :relative)
+
+  %{
+    session_id: session.session_id,
+    content: session.content,
+    shared_users: session.shared_users,
+    user_id: session.user_id,
+    inserted_at: inserted_at,
+    updated_at: updated_at
+  }
+end
 
   def push_to_session(session_id, socket),
     do: {:noreply, push_navigate(socket, to: "/session/#{session_id}")}
 
   def mount(_params, _session, socket) do
+    user_sessions = user_sessions(socket.assigns.current_user.email)
     {:ok,
      socket
-     |> assign(:created_session, nil)}
+     |> assign(:created_session, nil)
+     |> assign(:user_sessions, user_sessions)}
   end
 end

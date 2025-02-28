@@ -8,7 +8,7 @@ defmodule LiveSveltePheonix.Session do
     field :shared_users, {:array, :string}
     belongs_to :user, LiveSveltePheonix.Accounts.User
 
-    timestamps()
+    timestamps(type: :naive_datetime)
   end
 
   def changeset(session, attrs) do
@@ -31,3 +31,10 @@ defmodule LiveSveltePheonix.Session do
     |> LiveSveltePheonix.Repo.update!()
   end
 end
+require Protocol
+
+Protocol.derive(
+  Jason.Encoder,
+  LiveSveltePheonix.Session,
+  only: [:id, :session_id, :content, :shared_users, :user_id, :inserted_at, :updated_at]
+)
