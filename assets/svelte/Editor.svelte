@@ -1,6 +1,5 @@
 <script>
   import BubbleMenuComponent from './menus_editor/BubbleMenu.svelte'
-  import InviteUser from './invite/InviteUser.svelte'
   import { onMount, onDestroy } from 'svelte'
   import { Editor } from '@tiptap/core'
   import BubbleMenu from '@tiptap/extension-bubble-menu'
@@ -51,7 +50,7 @@
     clearTimeout(updateTimeout)
     updateTimeout = setTimeout(() => {
       live.pushEvent('content_updated', { content: newContent })
-    }, 10)
+    }, 50)
   }
 
   onMount(() => {
@@ -118,4 +117,3 @@
 {/if}
 
 <div bind:this={element} class="w-full" />
-<InviteUser/>

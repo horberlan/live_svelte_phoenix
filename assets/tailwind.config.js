@@ -71,6 +71,7 @@ module.exports = {
   daisyui: {
     // retro
     // dark
-    themes: [ "nord" ],
+    // nord
+    themes: [ "garden" ],
   },
 }

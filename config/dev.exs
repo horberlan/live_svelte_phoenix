@@ -10,7 +10,6 @@ config :live_svelte_pheonix, LiveSveltePheonix.Repo,
   pool_size: 10,
   ssl: [cacerts: :public_key.cacerts_get()]
 
-
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
 # to bundle .js and .css sources.

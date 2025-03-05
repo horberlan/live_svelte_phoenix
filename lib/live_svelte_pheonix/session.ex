@@ -22,6 +22,7 @@ defmodule LiveSveltePheonix.Session do
     |> changeset(%{content: content})
     |> LiveSveltePheonix.Repo.update!()
   end
+
   def update_shared_users(session_id, user_email) do
     this_session = LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id)
     updated_shared_users = (this_session.shared_users || []) ++ [user_email]
@@ -31,6 +32,7 @@ defmodule LiveSveltePheonix.Session do
     |> LiveSveltePheonix.Repo.update!()
   end
 end
+
 require Protocol
 
 Protocol.derive(

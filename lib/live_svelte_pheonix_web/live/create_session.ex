@@ -10,7 +10,13 @@ defmodule LiveSveltePheonixWeb.CreateSession do
 
   def render(assigns) do
     ~H"""
-    <.NewSession socket={@socket} current_user={@current_user} user_sessions={@user_sessions} />
+    <.svelte name="NewSession" socket={@socket} props={%{current_user: @current_user}}>
+      <.svelte
+        name="user_session_table/UserSessionTable"
+        socket={@socket}
+        props={%{user_sessions: @user_sessions}}
+      />
+    </.svelte>
     """
   end
 
@@ -52,40 +58,67 @@ defmodule LiveSveltePheonixWeb.CreateSession do
       {:error, reason} -> {:error, "Failed to create session: #{reason}"}
     end
   end
-def user_sessions(user_email) do
-  import Ecto.Query
 
-  case Repo.get_by(LiveSveltePheonix.Accounts.User, email: user_email) do
-    nil -> []
-    user ->
-      query =
-        from s in Session,
-          where: s.user_id == ^user.id or fragment("? = ANY(shared_users)", ^user_email)
+  def user_sessions(user_email) do
+    import Ecto.Query
 
-      Repo.all(query)
-      |> Enum.map(&format_session_with_timex/1)
+    case Repo.get_by(LiveSveltePheonix.Accounts.User, email: user_email) do
+      nil ->
+        []
+
+      user ->
+        query =
+          from s in Session,
+            where: s.user_id == ^user.id or fragment("? = ANY(shared_users)", ^user_email)
+
+        Repo.all(query)
+        |> Enum.map(&format_sessions_table/1)
+    end
   end
-end
 
-defp format_session_with_timex(session) do
-  {:ok, inserted_at} = Timex.shift(session.inserted_at, minutes: 0) |> Timex.format("{relative}", :relative)
-  {:ok, updated_at} = Timex.shift(session.updated_at, minutes: 0) |> Timex.format("{relative}", :relative)
+  defp format_sessions_table(session) do
+    {:ok, updated_at} =
+      Timex.shift(session.updated_at, minutes: 0) |> Timex.format("{relative}", :relative)
 
-  %{
-    session_id: session.session_id,
-    content: session.content,
-    shared_users: session.shared_users,
-    user_id: session.user_id,
-    inserted_at: inserted_at,
-    updated_at: updated_at
-  }
-end
+    session_title =
+      case parse_first_tag_text(session.content) do
+        {:ok, children} -> Floki.text(children)
+        _ -> ""
+      end
+
+    %{
+      session_id: session.session_id,
+      title: session_title,
+      shared_users: session.shared_users,
+      updated_at: updated_at
+    }
+  end
+
+  defp parse_first_tag_text(html) do
+    {:ok, html_parsed} = Floki.parse_fragment(~s[#{html}])
+
+    case List.first(html_parsed) do
+      {_tag, _attrs, children} ->
+        {:ok, children}
+
+      _ ->
+        {:error, :unexpected_element_type}
+    end
+  end
 
   def push_to_session(session_id, socket),
     do: {:noreply, push_navigate(socket, to: "/session/#{session_id}")}
 
-  def mount(_params, _session, socket) do
+  def mount(params, session, socket) do
+    case connected?(socket) do
+      true -> connected_mount(params, session, socket)
+      false -> {:ok, socket |> assign(:user_sessions, [])}
+    end
+  end
+
+  def connected_mount(_params, _session, socket) do
     user_sessions = user_sessions(socket.assigns.current_user.email)
+
     {:ok,
      socket
      |> assign(:created_session, nil)

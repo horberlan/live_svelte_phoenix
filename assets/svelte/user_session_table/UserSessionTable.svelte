@@ -1,12 +1,7 @@
 <script>
-  export let user_sessions;
+  export let user_sessions
 
-  const truncateSessionContent = (html) => {
-    const text = html.replace(/<[^>]+>/g, ' ');
-    return text.split(/\s+/).slice(0, 6).join(' ');
-  };
-
-  const tableHeaders = ['', 'Content', 'Session id', 'updated at'];
+  const tableHeaders = ['', 'Title', 'Session id', 'updated at']
 </script>
 
 <div class="overflow-x-auto">
@@ -22,9 +17,14 @@
       {#each user_sessions as session, index}
         <tr>
           <th>{index + 1}</th>
-          <td>{truncateSessionContent(session.content)}</td>
+          <td>{session.title}</td>
           <td>
-            <a href="/session/{session.session_id}" class="link">
+            <a
+              href="/session/{session.session_id}"
+              data-phx-link="redirect"
+              data-phx-link-state="push"
+              class="link"
+            >
               {session.session_id}
             </a>
           </td>
