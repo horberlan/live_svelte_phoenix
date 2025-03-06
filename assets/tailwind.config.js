@@ -69,9 +69,6 @@ module.exports = {
     })
   ],
   daisyui: {
-    // retro
-    // dark
-    // nord
-    themes: [ "garden" ],
+    themes: [ "garden", "cyberpunk", "retro", "nord" ],
   },
 }

@@ -13,7 +13,7 @@
   }
 </script>
 
-<div class="mt-4">
+<div class="mt-4 pl-4">
   <input
     type="email"
     class="input input-bordered w-full max-w-xs"

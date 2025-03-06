@@ -4,6 +4,7 @@
   import { Editor } from '@tiptap/core'
   import BubbleMenu from '@tiptap/extension-bubble-menu'
   import StarterKit from '@tiptap/starter-kit'
+  import Placeholder from '@tiptap/extension-placeholder'
 
   let element
   let editor
@@ -61,11 +62,14 @@
         BubbleMenu.configure({
           element: bubbleMenu,
         }),
+        Placeholder.configure({
+          placeholder: 'Note Title',
+        }),
       ],
       editorProps: {
         attributes: {
           class:
-            'prose prose-sm sm:prose-base m-5 p-4 focus:outline-none bg-white shadow-md rounded-lg',
+            'prose max-w-none prose-sm sm:prose-base m-5 p-4 focus:outline-none bg-white shadow-md rounded-lg',
         },
       },
       content,
