@@ -1,7 +1,6 @@
 defmodule LiveSveltePheonixWeb.CreateSession do
   use LiveSveltePheonixWeb, :live_view
   use LiveSvelte.Components
-  use Timex
 
   alias LiveSveltePheonix.{Repo, Session}
   import Ecto.Query
@@ -77,11 +76,10 @@ defmodule LiveSveltePheonixWeb.CreateSession do
   end
 
   defp format_sessions_table(session) do
-    {:ok, updated_at} =
-      Timex.shift(session.updated_at, minutes: 0) |> Timex.format("{relative}", :relative)
+    {:ok, updated_at} = LiveSveltePheonix.Utils.huminize_date(session.updated_at)
 
     session_title =
-      case parse_first_tag_text(session.content) do
+      case LiveSveltePheonix.Utils.parse_first_tag_text(session.content) do
         {:ok, children} -> Floki.text(children)
         _ -> ""
       end
@@ -92,18 +90,6 @@ defmodule LiveSveltePheonixWeb.CreateSession do
       shared_users: session.shared_users,
       updated_at: updated_at
     }
-  end
-
-  defp parse_first_tag_text(html) do
-    {:ok, html_parsed} = Floki.parse_fragment(~s[#{html}])
-
-    case List.first(html_parsed) do
-      {_tag, _attrs, children} ->
-        {:ok, children}
-
-      _ ->
-        {:error, :unexpected_element_type}
-    end
   end
 
   def push_to_session(session_id, socket),

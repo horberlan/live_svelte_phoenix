@@ -7,4 +7,19 @@ defmodule LiveSveltePheonix.Utils do
       params: List.wrap(params)
     })
   end
+
+  def huminize_date(date) do
+    Timex.shift(date, minutes: 0) |> Timex.format("{relative}", :relative)
+  end
+  def parse_first_tag_text(html) do
+    {:ok, html_parsed} = Floki.parse_fragment(~s[#{html}])
+
+    case List.first(html_parsed) do
+      {_tag, _attrs, children} ->
+        {:ok, children}
+
+      _ ->
+        {:error, :unexpected_element_type}
+    end
+  end
 end
