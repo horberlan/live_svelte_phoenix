@@ -8,6 +8,7 @@ config :live_svelte_pheonix, LiveSveltePheonix.Repo,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10,
+  prepare: :unnamed,
   ssl: [cacerts: :public_key.cacerts_get()]
 
 # The watchers configuration can be used to run external
