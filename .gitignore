@@ -1,3 +1,4 @@
+env.nu
 .env
 env.sh
 # The directory Mix will write compiled artifacts to.

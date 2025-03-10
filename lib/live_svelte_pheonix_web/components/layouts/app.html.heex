@@ -110,21 +110,3 @@
     {@inner_content}
   </div>
 </main>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  const savedTheme = localStorage.getItem('theme');
-  if (!savedTheme) return;
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    document.querySelectorAll('.theme-controller').forEach(input => {
-      input.checked = input.value === savedTheme;
-    });
-});
-
-document.querySelectorAll('.theme-controller').forEach(input => {
-  input.addEventListener('change', (e) => {
-    const theme = e.target.value;
-    localStorage.setItem('theme', theme);
-  });
-});
-</script>
