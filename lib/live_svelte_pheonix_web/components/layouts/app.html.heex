@@ -8,6 +8,100 @@
         v{Application.spec(:phoenix, :vsn)}
       </p>
     </div>
+    <ul class="relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
+      <%= if @current_user do %>
+        <li class="text-[0.8125rem] leading-6 text-zinc-900">
+          {@current_user.email}
+        </li>
+        <li>
+          <.link
+            href={~p"/users/settings"}
+            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+          >
+            Settings
+          </.link>
+        </li>
+        <li>
+          <.link
+            href={~p"/users/log_out"}
+            method="delete"
+            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+          >
+            Log out
+          </.link>
+        </li>
+      <% else %>
+        <li>
+          <.link
+            href={~p"/users/register"}
+            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+          >
+            Register
+          </.link>
+        </li>
+        <li>
+          <.link
+            href={~p"/users/log_in"}
+            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+          >
+            Log in
+          </.link>
+        </li>
+      <% end %>
+      <div class="dropdown">
+        <div tabindex="0" role="button" class="btn m-1">
+          Theme
+          <svg
+            width="12px"
+            height="12px"
+            class="inline-block h-2 w-2 fill-current opacity-60"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 2048 2048"
+          >
+            <path d="M1799 349l242 241-1017 1017L7 590l242-241 775 775 775-775z"></path>
+          </svg>
+        </div>
+
+        <ul tabindex="0" class="dropdown-content bg-base-300 rounded-box z-1 p-2 shadow-2xl">
+          <li>
+            <input
+              type="radio"
+              name="theme-dropdown"
+              class="theme-controller w-full btn btn-sm btn-block btn-ghost justify-start"
+              aria-label="garden"
+              value="garden"
+            />
+          </li>
+          <li>
+            <input
+              type="radio"
+              name="theme-dropdown"
+              class="theme-controller w-full btn btn-sm btn-block btn-ghost justify-start"
+              aria-label="cyberpunk"
+              value="cyberpunk"
+            />
+          </li>
+          <li>
+            <input
+              type="radio"
+              name="theme-dropdown"
+              class="theme-controller w-full btn btn-sm btn-block btn-ghost justify-start"
+              aria-label="retro"
+              value="retro"
+            />
+          </li>
+          <li>
+            <input
+              type="radio"
+              name="theme-dropdown"
+              class="theme-controller w-full btn btn-sm btn-block btn-ghost justify-start"
+              aria-label="nord"
+              value="nord"
+            />
+          </li>
+        </ul>
+      </div>
+    </ul>
   </div>
 </header>
 <main class="px-2 py-8 sm:px-6 lg:px-8 h-svh">

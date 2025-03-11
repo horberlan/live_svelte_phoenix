@@ -66,7 +66,7 @@ defmodule LiveSveltePheonixWeb.CoreComponents do
               phx-window-keydown={JS.exec("data-cancel", to: "##{@id}")}
               phx-key="escape"
               phx-click-away={JS.exec("data-cancel", to: "##{@id}")}
-              class="shadow-zinc-700/10 ring-zinc-700/10 relative hidden rounded-2xl bg-white p-14 shadow-lg ring-1 transition"
+              class="shadow-zinc-700/10 ring-zinc-700/10 relative hidden rounded-2xl bg-base-100 p-14 shadow-lg ring-1 transition"
             >
               <div class="absolute top-6 right-5">
                 <button
@@ -115,25 +115,42 @@ defmodule LiveSveltePheonixWeb.CoreComponents do
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
       class={[
-        "fixed top-2 right-2 mr-2 w-80 sm:w-96 z-50 rounded-lg p-3 ring-1",
-        @kind == :info && "bg-emerald-50 text-emerald-800 ring-emerald-500 fill-cyan-900",
-        @kind == :error && "bg-rose-50 text-rose-900 shadow-md ring-rose-500 fill-rose-900"
+        "toast toast-bottom toast-end w-80 sm:w-96 z-50 rounded-lg p-3 ring-current right-1 bottom-1",
+        @kind == :info && "alert alert-success",
+        @kind == :error && "alert alert-error"
       ]}
       {@rest}
     >
-      <p :if={@title} class="flex items-center gap-1.5 text-sm font-semibold leading-6">
-        <.icon :if={@kind == :info} name="hero-information-circle-mini" class="h-4 w-4" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle-mini" class="h-4 w-4" />
-        {@title}
-      </p>
-      <p class="mt-2 text-sm leading-5">{msg}</p>
-      <button type="button" class="group absolute top-1 right-1 p-2" aria-label={gettext("close")}>
-        <.icon name="hero-x-mark-solid" class="h-5 w-5 opacity-40 group-hover:opacity-70" />
+      <div class="w-full">
+        <p :if={@title} class="flex items-center gap-1.5 text-sm font-semibold leading-6">
+          <.icon
+            :if={@kind == :info}
+            name="hero-information-circle-mini"
+            class="h-4 w-4 text-current"
+          />
+          <.icon
+            :if={@kind == :error}
+            name="hero-exclamation-circle-mini"
+            class="h-4 w-4 text-current"
+          />
+          {@title}
+        </p>
+        <p class="mt-2 text-sm leading-5">{msg}</p>
+      </div>
+      <button
+        type="button"
+        class="btn btn-sm btn-ghost absolute top-1 right-1"
+        aria-label={gettext("close")}
+      >
+        <.icon name="hero-x-mark-solid" class="h-5 w-5 text-current" />
       </button>
     </div>
     """
   end
 
+  # "fixed top-2 right-2 mr-2 w-80 sm:w-96 z-50 rounded-lg p-3 ring-1",
+  #       "flex items-center gap-1.5 text-sm font-semibold leading-6"
+  #       "mt-2 text-sm leading-5"
   @doc """
   Shows the flash group with standard titles and content.
 
@@ -202,7 +219,7 @@ defmodule LiveSveltePheonixWeb.CoreComponents do
   def simple_form(assigns) do
     ~H"""
     <.form :let={f} for={@for} as={@as} {@rest}>
-      <div class="mt-10 space-y-8 bg-white">
+      <div class="mt-10 space-y-8 bg-base-100">
         {render_slot(@inner_block, f)}
         <div :for={action <- @actions} class="mt-2 flex items-center justify-between gap-6">
           {render_slot(action, f)}
@@ -335,7 +352,7 @@ defmodule LiveSveltePheonixWeb.CoreComponents do
       <select
         id={@id}
         name={@name}
-        class="mt-2 block w-full rounded-md border border-gray-300 bg-white shadow-sm focus:border-zinc-400 focus:ring-0 sm:text-sm"
+        class="mt-2 block w-full rounded-md border border-gray-300 bg-base-100 shadow-sm focus:border-zinc-400 focus:ring-0 sm:text-sm"
         multiple={@multiple}
         {@rest}
       >
