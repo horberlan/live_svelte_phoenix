@@ -14,11 +14,13 @@
     "@tiptap/core": "^2.11.2",
     "@tiptap/extension-bubble-menu": "^2.11.2",
     "@tiptap/extension-floating-menu": "^2.11.2",
+    "@tiptap/extension-placeholder": "^2.11.5",
     "@tiptap/pm": "^2.11.2",
     "@tiptap/starter-kit": "^2.11.2",
     "live_svelte": "file:../deps/live_svelte",
     "phoenix": "file:../deps/phoenix",
     "phoenix_html": "file:../deps/phoenix_html",
-    "phoenix_live_view": "file:../deps/phoenix_live_view"
+    "phoenix_live_view": "file:../deps/phoenix_live_view",
+    "tailwindcss": "^4.0.9"
   }
 }
