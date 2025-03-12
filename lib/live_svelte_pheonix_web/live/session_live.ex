@@ -11,7 +11,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     ~H"""
     <main class="container p-2 rounded-md mx-auto bg-neutral-100 mb-4">
       <h1 class="text-center text-base-200">session_id: {@session_id}</h1>
-      <.Editor socket={@socket} content={@content} session_id={@session_id} />
+      <.Editor socket={@socket} content={@content} />
       <.svelte name="invite/InviteUser" socket={@socket} />
     </main>
     """
