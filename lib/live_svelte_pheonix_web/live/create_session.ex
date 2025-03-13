@@ -13,7 +13,7 @@ defmodule LiveSveltePheonixWeb.CreateSession do
       <.svelte
         name="user_session_table/UserSessionTable"
         socket={@socket}
-        props={%{user_sessions: @user_sessions}}
+        props={%{user_sessions: @user_sessions, user_table_loading: @user_table_loading}}
       />
     </.svelte>
     """
@@ -98,7 +98,7 @@ defmodule LiveSveltePheonixWeb.CreateSession do
   def mount(params, session, socket) do
     case connected?(socket) do
       true -> connected_mount(params, session, socket)
-      false -> {:ok, socket |> assign(:user_sessions, [])}
+      false -> {:ok, socket |> assign(:user_table_loading, true) |> assign(:user_sessions, [])}
     end
   end
 
@@ -108,6 +108,7 @@ defmodule LiveSveltePheonixWeb.CreateSession do
     {:ok,
      socket
      |> assign(:created_session, nil)
+     |> assign(:user_table_loading, false)
      |> assign(:user_sessions, user_sessions)}
   end
 end
