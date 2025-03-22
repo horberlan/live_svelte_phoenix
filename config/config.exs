@@ -7,6 +7,12 @@
 # General application configuration
 import Config
 
+config :live_svelte_pheonix, Oban,
+  engine: Oban.Engines.Basic,
+  notifier: Oban.Notifiers.Postgres,
+  queues: [default: 10, email: 10],
+  repo: LiveSveltePheonix.Repo
+
 config :live_svelte_pheonix,
   ecto_repos: [LiveSveltePheonix.Repo],
   generators: [timestamp_type: :utc_datetime]

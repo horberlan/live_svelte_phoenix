@@ -3,6 +3,7 @@ defmodule LiveSveltePheonixWeb.Router do
 
   import LiveSveltePheonixWeb.UserAuth
   import Phoenix.LiveView.Router
+  import Oban.Web.Router
 
   pipeline :browser do
     plug :accepts, ["html"]
@@ -21,10 +22,9 @@ defmodule LiveSveltePheonixWeb.Router do
   scope "/", LiveSveltePheonixWeb do
     pipe_through :browser
 
-    # get "/", PageController, :home
-
     live "/", CreateSession
     live "/session", CreateSession
+    oban_dashboard "/oban"
   end
 
   if Application.compile_env(:live_svelte_pheonix, :dev_routes) do

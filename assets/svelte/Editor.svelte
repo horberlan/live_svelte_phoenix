@@ -1,18 +1,15 @@
 <script>
-  import BubbleMenuComponent from './menus_editor/BubbleMenu.svelte'
   import { onMount, onDestroy } from 'svelte'
   import { Editor } from '@tiptap/core'
-  import BubbleMenu from '@tiptap/extension-bubble-menu'
   import StarterKit from '@tiptap/starter-kit'
+  import BubbleMenuComponent from './menus_editor/BubbleMenu.svelte'
+  import BubbleMenu from '@tiptap/extension-bubble-menu'
   import Placeholder from '@tiptap/extension-placeholder'
+  import Document from '@tiptap/extension-document'
 
   let element
   let editor
   let bubbleMenu
-
-  export let content
-  export let live
-
   let bubbleMenuItems = [
     {
       label: 'H1',
@@ -45,13 +42,41 @@
       command: () => editor.chain().focus().toggleItalic().run(),
     },
   ]
+
+  export let content
+  export let live
+  export let session_id
+  export let version
+
+  let lastKnownVersion = version
+  let lastKnownContent = content
+  let isRemoteUpdate = false
+  let pendingUpdates = []
   let updateTimeout
 
-  function debounceUpdate(newContent) {
-    clearTimeout(updateTimeout)
-    updateTimeout = setTimeout(() => {
-      live.pushEvent('content_updated', { content: newContent })
-    }, 50)
+  function getTextLengthBefore(doc, targetPos) {
+    let length = 0
+    doc.descendants((node, pos) => {
+      if (pos >= targetPos) return false
+      if (node.isText) length += node.text.length
+    })
+    return length
+  }
+
+  function findNewPosition(doc, oldFrom, adjustment) {
+    let newPos = oldFrom + adjustment
+    let found = false
+    doc.descendants((node, pos) => {
+      if (found) return false
+      if (node.isText) {
+        const endPos = pos + node.text.length
+        if (newPos >= pos && newPos <= endPos) {
+          found = true
+          return false
+        }
+      }
+    })
+    return Math.min(newPos, doc.content.size)
   }
 
   onMount(() => {
@@ -59,40 +84,89 @@
       element: element,
       extensions: [
         StarterKit,
-        BubbleMenu.configure({
-          element: bubbleMenu,
-        }),
-        Placeholder.configure({
-          placeholder: 'Note Title',
-        }),
+        BubbleMenu.configure({ element: bubbleMenu }),
+        Placeholder.configure({ placeholder: 'Note Title' }),
+        Document,
       ],
       editorProps: {
         attributes: {
           class:
-            'prose max-w-none prose-sm sm:prose-base m-5 p-4 focus:outline-none bg-white shadow-md rounded-lg',
+            'prose max-w-none prose-sm sm:prose-base m-5 p-4 focus:outline-none bg-base-200 shadow-md rounded-lg',
         },
       },
-      content,
-      onTransaction: () => {
-        editor = editor
-      },
+      content: content,
       onUpdate: ({ editor }) => {
+        if (isRemoteUpdate) return
+
         const newContent = editor.getHTML()
-        debounceUpdate(newContent)
+        const { from, to } = editor.state.selection
+        const oldDoc = editor.state.doc
+
+        pendingUpdates.push({
+          oldContent: lastKnownContent,
+          newContent: newContent,
+          version: lastKnownVersion,
+          from: from,
+          to: to,
+        })
+
+        lastKnownContent = newContent
+        clearTimeout(updateTimeout)
+        updateTimeout = setTimeout(() => {
+          const lastUpdate = pendingUpdates[pendingUpdates.length - 1]
+          live.pushEvent('content_updated', {
+            old_content: lastUpdate.oldContent,
+            new_content: lastUpdate.newContent,
+            version: lastUpdate.version,
+            from: lastUpdate.from,
+            to: lastUpdate.to,
+          })
+          pendingUpdates = []
+        }, 200)
       },
     })
 
-    live.handleEvent('remote_content_updated', (data) => {
-      if (editor && data.content !== editor.getHTML()) {
-        editor.commands.setContent(data.content, false)
+    live.handleEvent(
+      'remote_content_updated',
+      ({ content, version, from, to }) => {
+        if (content !== editor.getHTML()) {
+          isRemoteUpdate = true
+          const oldDoc = editor.state.doc
+          const oldLengthBeforeFrom = getTextLengthBefore(oldDoc, from)
+          const oldLengthBeforeTo = getTextLengthBefore(oldDoc, to)
+
+          editor.commands.setContent(content, false)
+          const newDoc = editor.state.doc
+
+          const newLengthBeforeFrom = getTextLengthBefore(newDoc, from)
+          const newLengthBeforeTo = getTextLengthBefore(newDoc, to)
+
+          const fromAdjustment = newLengthBeforeFrom - oldLengthBeforeFrom
+          const toAdjustment = newLengthBeforeTo - oldLengthBeforeTo
+
+          let newFrom = findNewPosition(newDoc, from, fromAdjustment)
+          let newTo = findNewPosition(newDoc, to, toAdjustment)
+
+          editor
+            .chain()
+            .focus()
+            .setTextSelection({
+              from: Math.max(0, Math.min(newFrom, newDoc.content.size)),
+              to: Math.max(0, Math.min(newTo, newDoc.content.size)),
+            })
+            .run()
+
+          lastKnownContent = content
+          lastKnownVersion = version
+          isRemoteUpdate = false
+        }
       }
-    })
+    )
   })
 
   onDestroy(() => {
-    if (editor) {
-      editor.destroy()
-    }
+    if (editor) editor.destroy()
+    clearTimeout(updateTimeout)
   })
 </script>
 
@@ -107,14 +181,12 @@
         <button
           on:click={item.command}
           class:active={editor.isActive(item.active())}
-          class="
-        {editor.isActive(item.active())
+          class="{editor.isActive(item.active())
             ? 'bg-neutral text-base-100 hover:bg-neutral'
-            : 'bg-base-200'}
-        px-2 py-1 rounded-md hover:bg-base-300"
+            : 'bg-base-200'} px-2 py-1 rounded-md hover:bg-base-300"
         >
-          {item.label}</button
-        >
+          {item.label}
+        </button>
       {/each}
     {/if}
   </div>

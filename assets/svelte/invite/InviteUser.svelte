@@ -25,7 +25,7 @@
   }
 </script>
 
-<form class="mt-4 pl-4" on:submit={handleSubmit}>
+<form class="mt-4 flex justify-end gap-2 mr-4" on:submit={handleSubmit}>
   <input
     type="email"
     class="input input-border w-full max-w-xs"
@@ -34,5 +34,5 @@
     bind:this={emailInput}
     on:change={checkEmailValidity}
   />
-  <button class="btn submit" type="submit"> {intl.invite} </button>
+  <button class="btn btn-neutral btn-soft" type="submit"> {intl.invite} </button>
 </form>

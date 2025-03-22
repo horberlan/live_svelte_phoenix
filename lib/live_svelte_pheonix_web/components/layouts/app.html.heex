@@ -1,8 +1,22 @@
+<%!-- bg-base-100 border-base-300  --%>
 <header class="px-2 sm:px-6 lg:px-8">
-  <div class="flex items-center justify-between border-b border-primary-100 py-3 text-sm">
+  <div class="bg-base-100 flex items-center justify-between border-b border-base-300 py-3 text-sm">
     <div class="flex items-center px-2 gap-4">
       <a href="/">
-        <img src={~p"/images/logo.svg"} width="36" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="1.5"
+          stroke="currentColor"
+          class="size-6"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"
+          />
+        </svg>
       </a>
       <p class="text-brand font-medium leading-6">
         v{Application.spec(:phoenix, :vsn)}
@@ -10,13 +24,13 @@
     </div>
     <ul class="relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
       <%= if @current_user do %>
-        <li class="text-[0.8125rem] leading-6 text-zinc-900">
+        <li class="text-[0.8125rem] leading-6 text-base-content">
           {@current_user.email}
         </li>
         <li>
           <.link
             href={~p"/users/settings"}
-            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+            class="text-[0.8125rem] leading-6 text-base-content font-semibold hover:text-zinc-700"
           >
             Settings
           </.link>
@@ -25,7 +39,7 @@
           <.link
             href={~p"/users/log_out"}
             method="delete"
-            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+            class="text-[0.8125rem] leading-6 text-base-content font-semibold hover:text-zinc-700"
           >
             Log out
           </.link>
@@ -34,7 +48,7 @@
         <li>
           <.link
             href={~p"/users/register"}
-            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+            class="text-[0.8125rem] leading-6 text-base-content font-semibold hover:text-zinc-700"
           >
             Register
           </.link>
@@ -42,7 +56,7 @@
         <li>
           <.link
             href={~p"/users/log_in"}
-            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+            class="text-[0.8125rem] leading-6 text-base-content font-semibold hover:text-zinc-700"
           >
             Log in
           </.link>
@@ -99,6 +113,25 @@
               value="nord"
             />
           </li>
+          <li>
+            <input
+              type="radio"
+              name="theme-dropdown"
+              class="theme-controller w-full btn btn-sm btn-block btn-ghost justify-start"
+              aria-label="forest"
+              value="forest"
+            />
+          </li>
+          <li>
+            <input
+              type="radio"
+              name="theme-dropdown"
+              class="theme-controller w-full btn btn-sm btn-block btn-ghost justify-start"
+              aria-label="dracula"
+              value="dracula"
+            />
+          </li>
+          <%!-- todo: loop by key --%>
         </ul>
       </div>
     </ul>

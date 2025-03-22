@@ -8,6 +8,7 @@ defmodule LiveSveltePheonix.MixProject do
       elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      consolidate_protocols: Mix.env() != :dev,
       aliases: aliases(),
       deps: deps()
     ]
@@ -32,6 +33,9 @@ defmodule LiveSveltePheonix.MixProject do
   # Type `mix help deps` for examples and options.
   defp deps do
     [
+      {:oban_web, "~> 2.0"},
+      {:oban, "~> 2.0"},
+      {:igniter, "~> 0.5", only: [:dev, :test]},
       {:bcrypt_elixir, "~> 3.0"},
       {:phoenix, "~> 1.7.14"},
       {:phoenix_ecto, "~> 4.5"},

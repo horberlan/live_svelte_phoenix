@@ -13,6 +13,7 @@ defmodule LiveSveltePheonix.Application do
       LiveSveltePheonix.Repo,
       {DNSCluster,
        query: Application.get_env(:live_svelte_pheonix, :dns_cluster_query) || :ignore},
+      {Oban, Application.fetch_env!(:live_svelte_pheonix, Oban)},
       {Phoenix.PubSub, name: LiveSveltePheonix.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: LiveSveltePheonix.Finch},
