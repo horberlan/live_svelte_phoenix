@@ -4,7 +4,6 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   Supports multiple collaborators with automatic conflict resolution.
   """
   use GenServer
-  alias Delta.Op
 
   @initial_state %{
     # Number of changes made to the document
@@ -124,7 +123,7 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
           change
         end
 
-      inverted = Delta.invert(transformed_change, state.contents)
+      _inverted = Delta.invert(transformed_change, state.contents)
       Delta.compose(state.contents, transformed_change)
     end
 

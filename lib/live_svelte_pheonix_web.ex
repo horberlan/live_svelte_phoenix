@@ -43,7 +43,7 @@ defmodule LiveSveltePheonixWeb do
         layouts: [html: LiveSveltePheonixWeb.Layouts]
 
       import Plug.Conn
-      import LiveSveltePheonixWeb.Gettext
+      use Gettext, backend: LiveSveltePheonixWeb.Gettext
 
       unquote(verified_routes())
     end
@@ -86,7 +86,7 @@ defmodule LiveSveltePheonixWeb do
       import Phoenix.HTML
       # Core UI components and translation
       import LiveSveltePheonixWeb.CoreComponents
-      import LiveSveltePheonixWeb.Gettext
+      use Gettext, backend: LiveSveltePheonixWeb.Gettext
       import LiveSvelte
       # Shortcut for generating JS commands
       alias Phoenix.LiveView.JS

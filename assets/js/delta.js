@@ -78,7 +78,7 @@ export class Delta {
         const newDelta = Delta.fromTiptapDoc(tr.doc);
 
         // Calculate the difference between the two deltas
-        return Delta.diff(oldDelta, newDelta);
+        return Delta.diffDeltas(oldDelta, newDelta);
     }
 
     /**
@@ -87,7 +87,7 @@ export class Delta {
      * @param {Delta} newDelta - Delta of the new document
      * @returns {Delta} Delta representing the changes
      */
-    static diff(oldDelta, newDelta) {
+    static diffDeltas(oldDelta, newDelta) {
         const ops = [];
         let oldIndex = 0;
         let newIndex = 0;
