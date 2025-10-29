@@ -186,6 +186,16 @@
     collaborators = Array.from(uniqueCollaborators.entries());
   }
 
+  function handleRemoteCursorUpdate(remoteUserId, position, remoteUserName) {
+    if (!editor) return;
+    
+    try {
+      editor.commands.updateRemoteCursor(remoteUserId, position, remoteUserName);
+    } catch (error) {
+      console.error('Error updating cursor:', error);
+    }
+  }
+
   async function initializeCollaboration() {
     if (!enableCollaboration) return;
 
@@ -195,7 +205,8 @@
         userId,
         userName,
         handleRemoteUpdate,
-        handleCollaboratorChange
+        handleCollaboratorChange,
+        handleRemoteCursorUpdate
       );
 
       const response = await collaborativeClient.connect();

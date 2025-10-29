@@ -13,17 +13,13 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   @default_editor_content "<h2>Start writing...</h2><p>Your content here</p>"
   @pubsub LiveSveltePheonix.PubSub
 
-
   def render(assigns) do
     ~H"""
     <main class="container p-2 rounded-md mx-auto bg-base-200 mb-4">
-      <h1 class="text-center text-base-200">Session: {@session_id}</h1>
-      <.Editor
-        socket={@socket}
-        content={@content}
-        docId={@session_id}
-        enableCollaboration={true}
-      />
+      <h1 class="text-center text-base-300 text-sm sm:text-base md:text-lg break-all px-2">
+        Session: {@session_id}
+      </h1>
+      <.Editor socket={@socket} content={@content} docId={@session_id} enableCollaboration={true} />
       <.svelte name="invite/InviteUser" socket={@socket} />
     </main>
     """
