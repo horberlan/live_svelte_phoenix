@@ -1,15 +1,19 @@
 import Config
 
 config :live_svelte_pheonix, LiveSveltePheonix.Repo,
-  username: System.fetch_env!("PGUSER"),
-  password: System.fetch_env!("PGPASSWORD"),
-  hostname: System.fetch_env!("PGHOST"),
-  database: System.fetch_env!("PGDATABASE"),
+  username: System.get_env("PGUSER", "postgres"),
+  password: System.get_env("PGPASSWORD", "postgres"),
+  hostname: System.get_env("PGHOST", "localhost"),
+  database: System.get_env("PGDATABASE", "live_svelte_pheonix_dev"),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10,
   prepare: :unnamed,
-  ssl: [cacerts: :public_key.cacerts_get()]
+  ssl:
+    if(System.get_env("PGHOST", "localhost") == "localhost",
+      do: false,
+      else: [cacerts: :public_key.cacerts_get()]
+    )
 
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we can use it
