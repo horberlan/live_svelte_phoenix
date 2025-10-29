@@ -61,7 +61,8 @@ defmodule LiveSveltePheonix.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:uuid, "~> 1.1"},
-      {:timex, "~> 3.0"}
+      {:timex, "~> 3.0"},
+      {:delta, "~> 0.4.1"}
     ]
   end
 

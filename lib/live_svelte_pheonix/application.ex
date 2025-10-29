@@ -14,16 +14,13 @@ defmodule LiveSveltePheonix.Application do
       {DNSCluster,
        query: Application.get_env(:live_svelte_pheonix, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: LiveSveltePheonix.PubSub},
-      # Start the Finch HTTP client for sending emails
+      LiveSveltePheonixWeb.Presence,
+      {Registry, keys: :unique, name: LiveSveltePheonix.DocumentRegistry},
+      LiveSveltePheonix.DocumentSupervisor,
       {Finch, name: LiveSveltePheonix.Finch},
-      # Start a worker by calling: LiveSveltePheonix.Worker.start_link(arg)
-      # {LiveSveltePheonix.Worker, arg},
-      # Start to serve requests, typically the last entry
       LiveSveltePheonixWeb.Endpoint
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
     opts = [strategy: :one_for_one, name: LiveSveltePheonix.Supervisor]
     Supervisor.start_link(children, opts)
   end

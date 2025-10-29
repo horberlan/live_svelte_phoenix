@@ -34,5 +34,5 @@
     bind:this={emailInput}
     on:change={checkEmailValidity}
   />
-  <button class="btn submit" type="submit"> {intl.invite} </button>
+  <button class="btn btn-secondary" type="submit"> {intl.invite} </button>
 </form>
