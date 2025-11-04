@@ -13,18 +13,15 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   @default_editor_content "<h2>Start writing...</h2><p>Your content here</p>"
   @pubsub LiveSveltePheonix.PubSub
 
-
   def render(assigns) do
     ~H"""
     <main class="container p-2 rounded-md mx-auto bg-base-200 mb-4">
+      <div class="flex justify-between">
+        <.svelte name="status/Session" socket={@socket} />
+        <.svelte name="invite/InviteUser" socket={@socket} />
+      </div>
       <h1 class="text-center text-base-200">Session: {@session_id}</h1>
-      <.Editor
-        socket={@socket}
-        content={@content}
-        docId={@session_id}
-        enableCollaboration={true}
-      />
-      <.svelte name="invite/InviteUser" socket={@socket} />
+      <.Editor socket={@socket} content={@content} docId={@session_id} enableCollaboration={true} />
     </main>
     """
   end
@@ -64,8 +61,6 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   def handle_info({:content_updated, content}, socket) do
     {:noreply, push_event(socket, "remote_content_updated", %{content: content})}
   end
-
-  # Private Functions
 
   defp subscribe_to_session_updates(session_id) do
     Phoenix.PubSub.subscribe(@pubsub, session_topic(session_id))

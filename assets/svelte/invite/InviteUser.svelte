@@ -21,18 +21,18 @@
   }
   let intl = {
     invite: 'Invite a member',
-    placeholder: 'daisyui@daisyui.com',
+    placeholder: 'mail@daisyui.com',
   }
 </script>
 
-<form class="mt-4 pl-4" on:submit={handleSubmit}>
+<form class="flex gap-4" on:submit={handleSubmit}>
   <input
     type="email"
-    class="input input-border w-full max-w-xs"
+    class="input input-bordered input-sm"
     bind:value={email}
     placeholder={intl.placeholder}
     bind:this={emailInput}
     on:change={checkEmailValidity}
   />
-  <button class="btn btn-secondary" type="submit"> {intl.invite} </button>
+  <button class="btn btn-secondary btn-sm" type="submit"> {intl.invite} </button>
 </form>

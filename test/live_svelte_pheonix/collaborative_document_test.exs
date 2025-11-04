@@ -103,7 +103,8 @@ defmodule LiveSveltePheonix.CollaborativeDocumentTest do
       CollaborativeDocument.update(doc_id, change2, 1, "user1")
 
       history = CollaborativeDocument.get_history(doc_id)
-      assert length(history) == 3  # versions 2, 1, 0
+      # versions 2, 1, 0
+      assert length(history) == 3
     end
 
     test "undo reverts last change", %{doc_id: doc_id} do

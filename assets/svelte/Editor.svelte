@@ -304,9 +304,7 @@
   });
 </script>
 
-<div class="relative">
- 
-
+<div class="relative mb-4">
   <BubbleMenuComponent {editor} {bubbleMenuItems} />
   {#if bubbleMenuItems.length > 0}
     <div class="flex gap-2 bg-base-100 p-2 rounded-lg shadow-sm" bind:this={bubbleMenu}>
@@ -325,46 +323,4 @@
   {/if}
 
   <div bind:this={element} class="w-full" />
-  {#if enableCollaboration}
-    <div class="flex items-center gap-2 z-10 ml-4">
-      <div title={intl.statusTitle(isConnected, docId, userId)}>
-        {#if isConnected}
-          <div class="badge badge-soft badge-success">{intl.connected}</div>
-        {:else}
-          <div class="badge badge-soft badge-error">{intl.disconnected}</div>
-        {/if}
-      </div>
-
-      {#if collaborators.length > 0}
-        <div>
-          <div class="inline-grid *:[grid-area:1/1]">
-            <div class="status status-info animate-pulse"></div>
-            <div class="status status-info"></div>
-          </div>
-          <span class="text-xs font-medium">
-            {collaborators.length} {collaborators.length === 1 ? intl.person : intl.people} {intl.online}
-          </span>
-        </div>
-      {/if}
-    </div>
-  {/if}
-  {#if enableCollaboration && otherCollaborators.length > 0}
-    <section class="mt-4 p-4 bg-base-200 rounded-xl shadow border border-base-300">
-      <header class="text-sm font-semibold mb-3 flex items-center gap-2 text-base-content/80">
-        {intl.currentlyEditing}
-      </header>
-
-      <div class="flex flex-wrap gap-2">
-        {#each otherCollaborators as [id, info] (id)}
-          <div class="badge badge-info gap-2 px-3 py-2 bg-base-100 hover:bg-base-300 transition-colors cursor-pointer">
-            <div class="relative flex items-center">
-              <span class="absolute -left-2 w-2.5 h-2.5 bg-success rounded-full animate-ping"></span>
-              <span class="absolute -left-2 w-2.5 h-2.5 bg-success rounded-full"></span>
-            </div>
-            <span class="font-medium text-xs text-info-content">{id}</span>
-          </div>
-        {/each}
-      </div>
-    </section>
-  {/if}
 </div>

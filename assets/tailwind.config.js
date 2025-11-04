@@ -69,6 +69,6 @@ module.exports = {
     })
   ],
   daisyui: {
-    themes: [ "garden", "dracula", "retro", "nord" ],
+    themes: [ "cupcake", "dracula", "retro", "nord", "sunset" ],
   },
 }

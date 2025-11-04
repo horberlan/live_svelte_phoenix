@@ -11,6 +11,7 @@ defmodule LiveSveltePheonix.Utils do
   def huminize_date(date) do
     Timex.shift(date, minutes: 0) |> Timex.format("{relative}", :relative)
   end
+
   def parse_first_tag_text(html) do
     {:ok, html_parsed} = Floki.parse_fragment(~s[#{html}])
 

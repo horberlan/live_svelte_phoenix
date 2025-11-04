@@ -4,7 +4,6 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   Supports multiple collaborators with automatic conflict resolution.
   """
   use GenServer
-  alias Delta.Op
 
   @initial_state %{
     # Number of changes made to the document
@@ -110,29 +109,35 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   @impl true
   def handle_call({:update, change, client_version, user_id}, _from, state) do
     # If the change is a full update (TipTap JSON)
-    new_contents = if is_map(change) && Map.get(change, "type") == "full_update" do
-      change
-    else
-      # Fallback to deltas (compatibility)
-      transformed_change =
-        if client_version < state.version do
-          changes_since = Enum.take(state.changes, state.version - client_version)
-          Enum.reduce(changes_since, change, fn server_change, client_change ->
-            Delta.transform(client_change, server_change, false)
-          end)
-        else
-          change
-        end
+    new_contents =
+      if is_map(change) && Map.get(change, "type") == "full_update" do
+        change
+      else
+        # Fallback to deltas (compatibility)
+        transformed_change =
+          if client_version < state.version do
+            changes_since = Enum.take(state.changes, state.version - client_version)
 
-      inverted = Delta.invert(transformed_change, state.contents)
-      Delta.compose(state.contents, transformed_change)
-    end
+            Enum.reduce(changes_since, change, fn server_change, client_change ->
+              Delta.transform(client_change, server_change, false)
+            end)
+          else
+            change
+          end
+
+        _inverted = Delta.invert(transformed_change, state.contents)
+        Delta.compose(state.contents, transformed_change)
+      end
 
     new_state = %{
       state
       | version: state.version + 1,
         contents: new_contents,
-        inverted_changes: if(is_map(change) && Map.get(change, "type") == "full_update", do: state.inverted_changes, else: [change | state.inverted_changes]),
+        inverted_changes:
+          if(is_map(change) && Map.get(change, "type") == "full_update",
+            do: state.inverted_changes,
+            else: [change | state.inverted_changes]
+          ),
         changes: [change | state.changes],
         last_updated: DateTime.utc_now()
     }
@@ -160,6 +165,7 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
       collaborators: state.collaborators,
       last_updated: state.last_updated
     }
+
     {:reply, result, state}
   end
 
