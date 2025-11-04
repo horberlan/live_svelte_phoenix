@@ -114,11 +114,12 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
 
     # Track presence - track/4 needs (socket, key, meta)
     # The process PID is used automatically
-    {:ok, _} = Presence.track(self(), socket.topic, user_id, %{
-      user_id: user_id,
-      user_name: user_name,
-      online_at: inspect(System.system_time(:second))
-    })
+    {:ok, _} =
+      Presence.track(self(), socket.topic, user_id, %{
+        user_id: user_id,
+        user_name: user_name,
+        online_at: inspect(System.system_time(:second))
+      })
 
     # Send current presence list
     push(socket, "presence_state", Presence.list(socket))
@@ -137,5 +138,4 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
 
     :ok
   end
-
 end
