@@ -1,6 +1,16 @@
 <header>
   <div class="flex items-center justify-between py-2 text-sm shadow-sm">
-    <div class="flex items-center w-full"></div>
+    <ul class="flex items-center w-full  gap-4 px-4 sm:px-6 lg:px-8">
+      <li class="text-[0.8125rem] leading-6">
+        <.link
+          href={~p"/"}
+          class="text-[0.8125rem] leading-6 
+          text-accent font-semibold hover:text-accent-700"
+        >
+          List
+        </.link>
+      </li>
+    </ul>
     <ul class="relative flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end w-full">
       <%= if @current_user do %>
         <li class="text-[0.8125rem] leading-6 text-accent">
@@ -19,7 +29,7 @@
             href={~p"/users/log_out"}
             method="delete"
             class="text-[0.8125rem] leading-6 
-text-accent font-semibold hover:text-accent-700"
+            text-accent font-semibold hover:text-accent-700"
           >
             Log out
           </.link>
@@ -29,7 +39,7 @@ text-accent font-semibold hover:text-accent-700"
           <.link
             href={~p"/users/register"}
             class="text-[0.8125rem] leading-6 
-text-accent font-semibold hover:text-accent-700"
+            text-accent font-semibold hover:text-accent-700"
           >
             Register
           </.link>
@@ -38,7 +48,7 @@ text-accent font-semibold hover:text-accent-700"
           <.link
             href={~p"/users/log_in"}
             class="text-[0.8125rem] leading-6 
-text-accent font-semibold hover:text-accent-700"
+            text-accent font-semibold hover:text-accent-700"
           >
             Log in
           </.link>
@@ -61,7 +71,7 @@ text-accent font-semibold hover:text-accent-700"
         <ul
           id="ThemeManager"
           tabindex="0"
-          class="dropdown-content bg-base-300 rounded-box z-1 p-2 shadow-2xl"
+          class="dropdown-content bg-base-300 rounded-box z-10 p-2 shadow-2xl"
           phx-hook="ThemeManager"
         >
           <%= for label <- ["nord","dracula","cupcake","retro", "sunset"] do %>
@@ -81,8 +91,8 @@ text-accent font-semibold hover:text-accent-700"
   </div>
 </header>
 <main class="px-2 py-8 sm:px-6 lg:px-8 h-svh">
+  <.flash_group flash={@flash} />
   <div class="mx-auto max-w-1xl pb-4">
-    <.flash_group flash={@flash} />
     {@inner_content}
   </div>
 </main>

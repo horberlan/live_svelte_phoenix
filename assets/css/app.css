@@ -15,3 +15,58 @@
     font-size: 1.5rem;
     line-height: 1.2;
 }
+
+.prose {
+    line-height: 1.5;
+  }
+  
+  .prose p {
+    margin-block: 0;
+  }
+  
+  .collaboration-cursor {
+    position: relative;
+    margin-left: -1px;
+    margin-right: -1px;
+    border-left: 1px solid;
+    border-right: 1px solid;
+    word-break: normal;
+    pointer-events: none;
+  }
+  
+  .collaboration-cursor-name {
+    position: absolute;
+    top: -1.4em;
+    left: -1px;
+    font-size: 0.8em;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    user-select: none;
+    white-space: nowrap;
+    padding: 0.1em 0.3em;
+    border-radius: 3px 3px 3px 0;
+  }
+  
+  .collaboration-cursor:hover .collaboration-cursor-name {
+    display: block;
+  }
+  
+  @keyframes collaboration-cursor-blink {
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 1;
+    }
+    50.1% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  
+  .collaboration-cursor {
+    animation: collaboration-cursor-blink 1s infinite;
+  }

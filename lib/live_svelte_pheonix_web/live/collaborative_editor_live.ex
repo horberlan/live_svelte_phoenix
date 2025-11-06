@@ -12,9 +12,11 @@ defmodule LiveSveltePheonixWeb.CollaborativeEditorLive do
 
   @default_content "<p>Start writing here...</p>"
 
+  on_mount {LiveSveltePheonixWeb.UserAuth, :mount_current_user}
+
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign_initial_state(socket)}
+    {:ok, assign_initial_state(socket, socket.assigns.current_user)}
   end
 
   @impl true
@@ -74,17 +76,24 @@ defmodule LiveSveltePheonixWeb.CollaborativeEditorLive do
     """
   end
 
-  # Private Functions
 
-  defp assign_initial_state(socket) do
+  defp assign_initial_state(socket, nil) do
+    user_id = generate_user_id()
     socket
     |> assign(:doc_id, generate_document_id())
-    |> assign(:user_id, generate_user_id())
-    |> assign(:user_name, generate_user_name())
+    |> assign(:user_id, user_id)
+    |> assign(:user_name, user_id)
+    |> assign(:content, @default_content)
+  end
+
+  defp assign_initial_state(socket, user) do
+    socket
+    |> assign(:doc_id, generate_document_id())
+    |> assign(:user_id, "user-#{user.id}")
+    |> assign(:user_name, user.email)
     |> assign(:content, @default_content)
   end
 
   defp generate_document_id, do: "doc-#{:rand.uniform(1000)}"
   defp generate_user_id, do: "user-#{:rand.uniform(10000)}"
-  defp generate_user_name, do: "User #{:rand.uniform(100)}"
 end

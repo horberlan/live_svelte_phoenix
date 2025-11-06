@@ -6,6 +6,10 @@ defmodule LiveSveltePheonix.Session do
     field :session_id, :string
     field :content, :string
     field :shared_users, {:array, :string}
+
+    # ADICIONADO: Campo para salvar a ordem
+    field :position, :integer, default: 0
+
     belongs_to :user, LiveSveltePheonix.Accounts.User
 
     timestamps(type: :naive_datetime)
@@ -13,7 +17,13 @@ defmodule LiveSveltePheonix.Session do
 
   def changeset(session, attrs) do
     session
-    |> cast(attrs, [:session_id, :content, :shared_users, :user_id])
+    |> cast(attrs, [
+      :session_id,
+      :content,
+      :shared_users,
+      :user_id,
+      :position
+    ])
     |> validate_required([:session_id, :user_id])
   end
 
@@ -38,5 +48,14 @@ require Protocol
 Protocol.derive(
   Jason.Encoder,
   LiveSveltePheonix.Session,
-  only: [:id, :session_id, :content, :shared_users, :user_id, :inserted_at, :updated_at]
+  only: [
+    :id,
+    :session_id,
+    :content,
+    :shared_users,
+    :user_id,
+    :inserted_at,
+    :updated_at,
+    :position # ADICIONADO: Para que o campo seja serializado em JSON
+  ]
 )

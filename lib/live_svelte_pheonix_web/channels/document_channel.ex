@@ -5,13 +5,17 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
   """
   use LiveSveltePheonixWeb, :channel
 
-  alias LiveSveltePheonix.{CollaborativeDocument, DocumentSupervisor}
+  alias LiveSveltePheonix.{CollaborativeDocument, DocumentSupervisor, Session, Repo}
   alias LiveSveltePheonixWeb.Presence
 
   @impl true
   def join("document:" <> doc_id, %{"user_id" => user_id, "user_name" => user_name}, socket) do
+    IO.inspect({:joining_document, doc_id}, label: "DocumentChannel")
+
     # Start or get the document process
-    {:ok, _pid} = DocumentSupervisor.start_document(doc_id)
+    start_result = DocumentSupervisor.start_document(doc_id)
+    IO.inspect({:start_document_result, start_result}, label: "DocumentChannel")
+    {:ok, _pid} = start_result
 
     # Add the collaborator
     CollaborativeDocument.add_collaborator(doc_id, user_id, %{
@@ -42,12 +46,16 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
   end
 
   @impl true
-  def handle_in("update", %{"change" => change, "version" => client_version}, socket) do
+  def handle_in("update", %{"change" => %{"content" => delta_content, "type" => "delta"}, "version" => client_version}, socket) do
     doc_id = socket.assigns.doc_id
     user_id = socket.assigns.user_id
 
-    case CollaborativeDocument.update(doc_id, change, client_version, user_id) do
+    IO.inspect({:received_update_event, doc_id, user_id, client_version, delta_content}, label: "DocumentChannel")
+
+    case CollaborativeDocument.update(doc_id, delta_content, client_version, user_id) do
       {:ok, result} ->
+        IO.inspect({:broadcasting_remote_update, doc_id, result.version, user_id, result.change}, label: "DocumentChannel")
+        # Broadcast delta to other clients
         broadcast_from!(socket, "remote_update", %{
           change: result.change,
           version: result.version,
@@ -58,8 +66,19 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
         {:reply, {:ok, result}, socket}
 
       {:error, reason} ->
+        IO.inspect({:error_updating_document, doc_id, user_id, reason}, label: "DocumentChannel")
         {:reply, {:error, %{reason: reason}}, socket}
     end
+  end
+
+  @impl true
+  def handle_in("save_snapshot", %{"content" => content}, socket) do
+    doc_id = socket.assigns.doc_id
+
+    # Save TipTap JSON to database
+    save_content_to_db(doc_id, content)
+
+    {:reply, :ok, socket}
   end
 
   @impl true
@@ -135,7 +154,20 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
     if doc_id && user_id do
       CollaborativeDocument.remove_collaborator(doc_id, user_id)
     end
-
     :ok
   end
+
+
+  defp save_content_to_db(doc_id, content) do
+    case Repo.get_by(Session, session_id: doc_id) do
+      nil -> :ok  # Session doesn't exist, skip
+      session ->
+        # Save as JSON string
+        json_string = Jason.encode!(content)
+        session
+        |> Session.changeset(%{content: json_string})
+        |> Repo.update()
+    end
+  end
+
 end

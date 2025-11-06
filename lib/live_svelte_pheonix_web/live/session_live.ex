@@ -17,11 +17,18 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     ~H"""
     <main class="container p-2 rounded-md mx-auto bg-base-200 mb-4">
       <div class="flex justify-between">
-        <.svelte name="status/Session" socket={@socket} />
+        <.svelte name="status/Session" socket={@socket} docId={@session_id} userId={@user_id} userName={@user_name} />
         <.svelte name="invite/InviteUser" socket={@socket} />
       </div>
       <h1 class="text-center text-base-200">Session: {@session_id}</h1>
-      <.Editor socket={@socket} content={@content} docId={@session_id} enableCollaboration={true} />
+      <.Editor
+        socket={@socket}
+        content={@content}
+        docId={@session_id}
+        userId={@user_id}
+        userName={@user_name}
+        enableCollaboration={true}
+      />
     </main>
     """
   end
@@ -33,17 +40,26 @@ defmodule LiveSveltePheonixWeb.SessionLive do
 
     session = get_or_create_session(session_id, session_data)
     content = get_session_content(session)
+    current_user = get_current_user(session_data)
+
+    user_id =
+      if current_user, do: "user-#{current_user.id}", else: "anonymous-#{:rand.uniform(1000)}"
+
+    user_name = if current_user, do: current_user.email, else: user_id
 
     {:ok,
      socket
      |> assign(:session_id, session_id)
      |> assign(:page_title, "Note #{session_id}")
-     |> assign(:content, content)}
+     |> assign(:content, content)
+     |> assign(:user_id, user_id)
+     |> assign(:user_name, user_name)}
   end
 
   def handle_event("content_updated", %{"content" => new_content}, socket) do
     session_id = socket.assigns.session_id
 
+    # Save HTML content for backward compatibility
     update_session_content(session_id, new_content)
     broadcast_content_update(session_id, new_content)
 

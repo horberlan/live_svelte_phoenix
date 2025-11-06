@@ -19,6 +19,21 @@ defmodule LiveSveltePheonixWeb.CreateSession do
     """
   end
 
+  def handle_event("update_session_order", %{"session_ids" => session_ids}, %{assigns: %{current_user: user}} = socket) do
+    Repo.transaction(fn ->
+      Enum.with_index(session_ids, fn session_id, position ->
+        query =
+          from s in Session,
+            where: s.session_id == ^session_id and s.user_id == ^user.id
+
+        Repo.update_all(query, set: [position: position])
+      end)
+    end)
+
+    new_user_sessions = user_sessions(user.email)
+    {:noreply, assign(socket, :user_sessions, new_user_sessions)}
+  end
+
   def handle_event("new_session", _params, %{assigns: %{current_user: user}} = socket) do
     session_id = :crypto.strong_rand_bytes(32) |> Base.encode32()
 
@@ -30,12 +45,18 @@ defmodule LiveSveltePheonixWeb.CreateSession do
 
   defp create_session(user, session_id) do
     Repo.transaction(fn ->
+      # ATUALIZADO: Encontrar a maior posição atual para colocar a nova no final
+      max_pos_query = from(s in Session, where: s.user_id == ^user.id, select: max(s.position))
+      current_max_pos = Repo.one(max_pos_query) || -1
+      new_position = current_max_pos + 1
+
       session_changeset =
         %Session{
           user_id: user.id,
           session_id: session_id,
           content: nil,
-          shared_users: []
+          shared_users: [],
+          position: new_position
         }
         |> Session.changeset(%{})
 
@@ -68,7 +89,8 @@ defmodule LiveSveltePheonixWeb.CreateSession do
       user ->
         query =
           from s in Session,
-            where: s.user_id == ^user.id or fragment("? = ANY(shared_users)", ^user_email)
+            where: s.user_id == ^user.id or fragment("? = ANY(shared_users)", ^user_email),
+            order_by: [asc: s.position, asc: s.inserted_at]
 
         Repo.all(query)
         |> Enum.map(&format_sessions_table/1)
@@ -106,8 +128,8 @@ defmodule LiveSveltePheonixWeb.CreateSession do
     user_sessions = user_sessions(socket.assigns.current_user.email)
 
     {:ok,
-     socket
-     |> assign(:created_session, nil)
-     |> assign(:user_sessions, user_sessions)}
+    socket
+    |> assign(:created_session, nil)
+    |> assign(:user_sessions, user_sessions)}
   end
 end

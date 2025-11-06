@@ -105,6 +105,8 @@ export class CollaborativeClient {
     // Se já for um objeto (como full_update), usa direto
     const change = changeData.toJSON ? changeData.toJSON() : changeData;
 
+    console.log('[CollaborativeClient] Sending change:', change, 'Version:', this.version);
+
     this.channel
       .push('update', {
         change: change,
@@ -112,6 +114,7 @@ export class CollaborativeClient {
       })
       .receive('ok', (response) => {
         this.version = response.version;
+        console.log('[CollaborativeClient] Change sent successfully. New version:', this.version);
       })
       .receive('error', (response) => {
         console.error('[CollaborativeClient] Error sending change:', response);
@@ -153,10 +156,20 @@ export class CollaborativeClient {
     });
   }
 
+  saveSnapshot(content) {
+    if (!this.channel) return;
+
+    this.channel.push('save_snapshot', {
+      content: content,
+    });
+  }
+
   handleRemoteUpdate(payload) {
     if (payload.user_id === this.userId) {
       return;
     }
+
+    console.log('[CollaborativeClient] Receiving remote update:', payload);
 
     this.isApplyingRemoteChange = true;
     this.version = payload.version;

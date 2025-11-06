@@ -5,11 +5,14 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   """
   use GenServer
 
+  alias LiveSveltePheonix.Repo
+  alias LiveSveltePheonix.Session
+
   @initial_state %{
     # Number of changes made to the document
     version: 0,
-    # Delta updated with all applied changes
-    contents: [],
+    # Quill-style Delta document content
+    contents: [%{insert: ""}],
     # Inverted versions of all changes (for undo/history)
     inverted_changes: [],
     # Normal changes (for redo/history)
@@ -95,11 +98,13 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
 
   @impl true
   def init(opts) do
-    initial_content = Keyword.get(opts, :initial_content, [])
+    doc_id = Keyword.fetch!(opts, :doc_id)
+
+    loaded_content = load_content_from_db(doc_id)
 
     state = %{
       @initial_state
-      | contents: initial_content,
+      | contents: loaded_content,
         last_updated: DateTime.utc_now()
     }
 
@@ -108,44 +113,36 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
 
   @impl true
   def handle_call({:update, change, client_version, user_id}, _from, state) do
-    # If the change is a full update (TipTap JSON)
-    new_contents =
-      if is_map(change) && Map.get(change, "type") == "full_update" do
-        change
+    IO.inspect({:incoming_change_to_document, change}, label: "CollaborativeDocument")
+
+    transformed_change =
+      if client_version < state.version do
+        changes_since = Enum.take(state.changes, state.version - client_version)
+
+        Enum.reduce(changes_since, change, fn server_change, client_change ->
+          Delta.transform(client_change, server_change, false)
+        end)
       else
-        # Fallback to deltas (compatibility)
-        transformed_change =
-          if client_version < state.version do
-            changes_since = Enum.take(state.changes, state.version - client_version)
-
-            Enum.reduce(changes_since, change, fn server_change, client_change ->
-              Delta.transform(client_change, server_change, false)
-            end)
-          else
-            change
-          end
-
-        _inverted = Delta.invert(transformed_change, state.contents)
-        Delta.compose(state.contents, transformed_change)
+        change
       end
+
+    IO.inspect({:transformed_change_in_document, transformed_change}, label: "CollaborativeDocument")
+
+    inverted = Delta.invert(transformed_change, state.contents)
+    composed_contents = Delta.compose(state.contents, transformed_change)
 
     new_state = %{
       state
       | version: state.version + 1,
-        contents: new_contents,
-        inverted_changes:
-          if(is_map(change) && Map.get(change, "type") == "full_update",
-            do: state.inverted_changes,
-            else: [change | state.inverted_changes]
-          ),
-        changes: [change | state.changes],
+        contents: composed_contents,
+        inverted_changes: [inverted | state.inverted_changes],
+        changes: [transformed_change | Enum.take(state.changes, 99)],
         last_updated: DateTime.utc_now()
     }
 
     result = %{
       version: new_state.version,
-      contents: new_contents,
-      change: change,
+      change: transformed_change, # Broadcast the transformed change
       user_id: user_id
     }
 
@@ -236,5 +233,33 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
 
   defp via_tuple(doc_id) do
     {:via, Registry, {LiveSveltePheonix.DocumentRegistry, doc_id}}
+  end
+
+  defp load_content_from_db(doc_id) do
+    default_delta = [%{insert: ""}]
+
+    case Repo.get_by(Session, session_id: doc_id) do
+      nil ->
+        default_delta
+
+      session when is_binary(session.content) and session.content != "" ->
+        case Jason.decode(session.content) do
+          {:ok, %{"type" => "doc"}} ->
+            # This is a Prosemirror document. For now, we can't handle it.
+            # Return a default delta to prevent crashing.
+            # TODO: Implement a proper Prosemirror -> Delta converter.
+            default_delta
+
+          {:ok, json_content} when is_list(json_content) ->
+            # Assume this is a valid Quill delta.
+            json_content
+
+          _ ->
+            default_delta
+        end
+
+      _session ->
+        default_delta
+    end
   end
 end

@@ -12,18 +12,16 @@
   export let content = '';
   export let live = null;
   export let docId = 'default-doc';
-  export let userId = 'user-' + Math.random().toString(36).substr(2, 9);
-  export let userName = 'Anonymous User';
+  export let userId = '';
+  export let userName = '';
   export let enableCollaboration = true;
 
   let element;
   let editor;
   let bubbleMenu;
   let collaborativeClient = null;
-  let collaborators = [];
   let isConnected = false;
-
-  $: otherCollaborators = collaborators.filter(([id]) => id !== userId);
+  let statusInterval;
 
   const bubbleMenuItems = [
     {
@@ -113,48 +111,20 @@
       const { change } = pendingRemoteChanges[pendingRemoteChanges.length - 1];
       pendingRemoteChanges = []; // Clear the queue
       
-      if (change.type === 'full_update' && change.content) {
-        const currentJSON = editor.getJSON();
-        
-        if (JSON.stringify(currentJSON) !== JSON.stringify(change.content)) {
-          editor.commands.setContent(change.content, false);
-          
-          requestAnimationFrame(() => {
-            if (editor && !editor.isDestroyed) {
-              try {
-                const docSize = editor.state.doc.content.size;
-                const newFrom = Math.min(Math.max(1, cursorPosition.from), docSize - 1);
-                const newTo = Math.min(Math.max(1, cursorPosition.to), docSize - 1);
-                
-                editor.commands.setTextSelection({
-                  from: newFrom,
-                  to: newTo
-                });
-              } catch (e) {
-                // Ignore positioning errors
-              }
-            }
-          });
-        }
-      } else {
-        // Fallback to deltas (if still using)
-        const delta = new Delta(change);
-        Delta.applyToTiptap(editor, delta);
-        
-        const adjustedPosition = adjustCursorPosition(delta, cursorPosition);
-        requestAnimationFrame(() => {
-          if (editor && !editor.isDestroyed) {
-            try {
-              editor.commands.setTextSelection({
-                from: adjustedPosition.from,
-                to: adjustedPosition.to
-              });
-            } catch (e) {
-              // Ignore errors
-            }
+      // Apply deltas
+      const delta = new Delta(change.content);
+      Delta.applyToTiptap(editor, delta);
+      
+      const adjustedPosition = adjustCursorPosition(delta, cursorPosition);
+      requestAnimationFrame(() => {
+        if (editor && !editor.isDestroyed) {
+          try {
+            editor.commands.setTextSelection({ from: adjustedPosition.from, to: adjustedPosition.to });
+          } catch (e) {
+            // Ignore errors
           }
-        });
-      }
+        }
+      });
     } catch (error) {
       console.error(intl.errorApplyingUpdate, error);
     } finally {
@@ -174,18 +144,6 @@
     };
   }
 
-  function handleCollaboratorChange(collaboratorsList) {
-    const uniqueCollaborators = new Map();
-    
-    collaboratorsList.forEach(([id, info]) => {
-      if (!uniqueCollaborators.has(id)) {
-        uniqueCollaborators.set(id, info);
-      }
-    });
-    
-    collaborators = Array.from(uniqueCollaborators.entries());
-  }
-
   async function initializeCollaboration() {
     if (!enableCollaboration) return;
 
@@ -195,13 +153,15 @@
         userId,
         userName,
         handleRemoteUpdate,
-        handleCollaboratorChange
+        () => {
+          // The collaboration-cursor plugin now handles collaborator updates automatically
+        }
       );
 
       const response = await collaborativeClient.connect();
       isConnected = true;
 
-      const statusInterval = setInterval(() => {
+      statusInterval = setInterval(() => {
         if (collaborativeClient) {
           const newStatus = collaborativeClient.getConnectionStatus();
           if (newStatus !== isConnected) {
@@ -210,24 +170,39 @@
         }
       }, 1000);
 
-      onDestroy(() => clearInterval(statusInterval));
-
-      if (response.contents) {
-        if (response.contents.type === 'full_update' && response.contents.content) {
-          // Content in TipTap JSON format
-          editor.commands.setContent(response.contents.content, false);
-        } else if (response.contents.length > 0) {
-          // Content in Delta format (fallback)
-          const delta = new Delta(response.contents);
-          Delta.applyToTiptap(editor, delta);
-        }
-      }
+      return response.contents; // Return contents to be applied after editor init
     } catch (error) {
+      console.error('Failed to initialize collaboration:', error);
       isConnected = false;
+      return null;
     }
   }
 
-  onMount(() => {
+  let themeColors = [];
+
+  function getThemeColors() {
+    if (typeof window === 'undefined') return [];
+    const style = getComputedStyle(document.documentElement);
+    return [
+      `hsl(${style.getPropertyValue('--p')})`,
+      `hsl(${style.getPropertyValue('--s')})`,
+      `hsl(${style.getPropertyValue('--a')})`,
+      `hsl(${style.getPropertyValue('--n')})`,
+      `hsl(${style.getPropertyValue('--in')})`,
+      `hsl(${style.getPropertyValue('--su')})`,
+      `hsl(${style.getPropertyValue('--wa')})`,
+      `hsl(${style.getPropertyValue('--er')})`,
+    ];
+  }
+
+  onMount(async () => {
+    themeColors = getThemeColors();
+
+    let initialContents = null;
+    if (enableCollaboration) {
+      initialContents = await initializeCollaboration();
+    }
+    
     editor = new Editor({
       element: element,
       extensions: [
@@ -238,7 +213,10 @@
         Placeholder.configure({
           placeholder: intl.placeholder,
         }),
-        CollaborationCursor,
+        CollaborationCursor.configure({
+          client: collaborativeClient,
+          themeColors: themeColors,
+        }),
       ],
       editorProps: {
         attributes: {
@@ -260,24 +238,29 @@
 
         if (collaborativeClient && isConnected && transaction.docChanged) {
           try {
-            const documentJSON = editor.getJSON();
-            collaborativeClient.sendChange({ type: 'full_update', content: documentJSON });
+            const delta = Delta.fromTiptapTransaction(transaction);
+            if (delta.ops.length > 0) {
+              collaborativeClient.sendChange({ type: 'delta', content: delta.toJSON() });
+            }
           } catch (error) {
             console.error(intl.errorSendingChange, error);
           }
         }
       },
       onSelectionUpdate: ({ editor }) => {
-        if (collaborativeClient && isConnected) {
+        if (collaborativeClient && isConnected && collaborativeClient.collaborators.size > 1) {
           const { from, to } = editor.state.selection;
           collaborativeClient.sendCursorUpdate({ from, to });
         }
       },
     });
 
-    if (enableCollaboration) {
-      initializeCollaboration();
-    } else {
+    if (initialContents && initialContents.length > 0) {
+      const delta = new Delta(initialContents);
+      Delta.applyToTiptap(editor, delta);
+    }
+
+    if (!enableCollaboration) {
       // Only for non-collaborative mode (fallback)
       live.handleEvent('remote_content_updated', (data) => {
         if (editor && data.content !== editor.getHTML()) {
@@ -301,6 +284,9 @@
     if (editor) {
       editor.destroy();
     }
+    if (statusInterval) {
+      clearInterval(statusInterval);
+    }
   });
 </script>
 
@@ -313,8 +299,7 @@
           <button
             on:click={item.command}
             class:active={editor.isActive(...item.active())}
-            class="{editor.isActive(...item.active()) ? 'bg-neutral text-base-100 hover:bg-neutral' : 'bg-base-200'} px-2 py-1 rounded-md hover:bg-base-300"
-          >
+            class="{editor.isActive(...item.active()) ? 'bg-neutral text-base-100 hover:bg-neutral' : 'bg-base-200'} px-2 py-1 rounded-md hover:bg-base-300">
             {item.label}
           </button>
         {/each}

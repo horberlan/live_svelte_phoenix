@@ -4,7 +4,7 @@
 
   export let docId = 'default-doc';
   export let userId = 'user-' + Math.random().toString(36).substr(2, 9);
-  export let userName = 'Anonymous User';
+  export let userName = null;
   export let enableCollaboration = true;
 
   let collaborativeClient = null;
