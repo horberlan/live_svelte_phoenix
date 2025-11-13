@@ -12,6 +12,7 @@ defmodule LiveSveltePheonix.Application do
       LiveSveltePheonixWeb.Telemetry,
       LiveSveltePheonix.Repo,
       {Oban, Application.fetch_env!(:live_svelte_pheonix, Oban)},
+      LiveSveltePheonix.Cache,
       {DNSCluster,
        query: Application.get_env(:live_svelte_pheonix, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: LiveSveltePheonix.PubSub},

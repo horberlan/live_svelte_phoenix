@@ -2,7 +2,7 @@ defmodule LiveSveltePheonixWeb.CreateSession do
   use LiveSveltePheonixWeb, :live_view
   use LiveSvelte.Components
 
-  alias LiveSveltePheonix.{Repo, Session}
+  alias LiveSveltePheonix.{Repo, Session, Cache}
   import Ecto.Query
 
   on_mount {LiveSveltePheonixWeb.UserAuth, :ensure_authenticated}
@@ -30,6 +30,8 @@ defmodule LiveSveltePheonixWeb.CreateSession do
       end)
     end)
 
+    # Invalidate cache after reordering
+    Cache.invalidate_user_sessions(user.email)
     new_user_sessions = user_sessions(user.email)
     {:noreply, assign(socket, :user_sessions, new_user_sessions)}
   end
@@ -38,7 +40,10 @@ defmodule LiveSveltePheonixWeb.CreateSession do
     session_id = :crypto.strong_rand_bytes(32) |> Base.encode32()
 
     case create_session(user, session_id) do
-      {:ok, _} -> push_to_session(session_id, socket)
+      {:ok, _} ->
+        # Invalidate cache after creating new session
+        Cache.invalidate_user_sessions(user.email)
+        push_to_session(session_id, socket)
       {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to create session")}
     end
   end
@@ -80,6 +85,20 @@ defmodule LiveSveltePheonixWeb.CreateSession do
   end
 
   def user_sessions(user_email) do
+    # Try cache first
+    case Cache.get_user_sessions(user_email) do
+      nil ->
+        # Cache miss - fetch from DB and cache
+        sessions = fetch_user_sessions_from_db(user_email)
+        Cache.put_user_sessions(user_email, sessions)
+        sessions
+
+      cached_sessions ->
+        cached_sessions
+    end
+  end
+
+  defp fetch_user_sessions_from_db(user_email) do
     import Ecto.Query
 
     case Repo.get_by(LiveSveltePheonix.Accounts.User, email: user_email) do

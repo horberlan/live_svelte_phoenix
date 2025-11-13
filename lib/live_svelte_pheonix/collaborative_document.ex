@@ -130,56 +130,73 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   def handle_call({:update, change, client_version, user_id, html_snapshot}, _from, state) do
     IO.inspect({:incoming_change_to_document, change}, label: "CollaborativeDocument")
 
-    transformed_change =
-      if client_version < state.version do
-        changes_since =
-          Enum.take(state.changes, state.version - client_version)
-          |> Enum.reverse()
+    # Validate and normalize the incoming change
+    normalized_change = normalize_delta(change)
 
-        Enum.reduce(changes_since, change, fn server_change, client_change ->
-          Delta.transform(client_change, server_change, false)
-        end)
+    # Reject empty or invalid deltas
+    if empty_delta?(normalized_change) do
+      Logger.warning("Received empty or invalid delta from user #{user_id}")
+      {:reply, {:error, :invalid_delta}, state}
+    else
+      transformed_change =
+        if client_version < state.version do
+          changes_since =
+            Enum.take(state.changes, state.version - client_version)
+            |> Enum.reverse()
+
+          Enum.reduce(changes_since, normalized_change, fn server_change, client_change ->
+            Delta.transform(client_change, server_change, false)
+          end)
+        else
+          normalized_change
+        end
+
+      IO.inspect({:transformed_change_in_document, transformed_change}, label: "CollaborativeDocument")
+
+      # Validate that transformed change is still valid
+      if empty_delta?(transformed_change) do
+        Logger.warning("Transformed delta is empty for user #{user_id}")
+        {:reply, {:error, :invalid_transformed_delta}, state}
       else
-        change
+        inverted = Delta.invert(transformed_change, state.contents)
+        composed_contents = Delta.compose(state.contents, transformed_change)
+
+        # Validate composed contents - ensure it's a valid list
+        normalized_contents = normalize_delta(composed_contents)
+
+        # Only update HTML if a new snapshot is provided
+        # Don't keep old HTML as it may be out of sync with delta
+        new_html = if is_binary(html_snapshot) and html_snapshot != "", do: html_snapshot, else: nil
+
+        new_state =
+          %{
+          state
+          | version: state.version + 1,
+            contents: normalized_contents,
+            inverted_changes: [inverted | state.inverted_changes],
+            changes: [transformed_change | Enum.take(state.changes, 99)],
+            last_updated: DateTime.utc_now(),
+            html: new_html,
+            changes_since_snapshot: state.changes_since_snapshot + 1
+          }
+          |> maybe_enqueue_snapshot()
+
+        persist_contents(new_state.doc_id, normalized_contents)
+        # Only persist HTML if we have a fresh snapshot
+        # This ensures HTML is always in sync with delta
+        persist_html(new_state.doc_id, new_html)
+
+        result = %{
+          version: new_state.version,
+          change: transformed_change, # Broadcast the transformed change
+          user_id: user_id,
+          contents: normalized_contents,
+          html: new_html
+        }
+
+        {:reply, {:ok, result}, new_state}
       end
-
-    IO.inspect({:transformed_change_in_document, transformed_change}, label: "CollaborativeDocument")
-
-    inverted = Delta.invert(transformed_change, state.contents)
-    composed_contents = Delta.compose(state.contents, transformed_change)
-
-    new_html =
-      cond do
-        is_binary(html_snapshot) -> html_snapshot
-        is_binary(state.html) -> state.html
-        true -> nil
-      end
-
-    new_state =
-      %{
-      state
-      | version: state.version + 1,
-        contents: composed_contents,
-        inverted_changes: [inverted | state.inverted_changes],
-        changes: [transformed_change | Enum.take(state.changes, 99)],
-        last_updated: DateTime.utc_now(),
-        html: new_html,
-        changes_since_snapshot: state.changes_since_snapshot + 1
-      }
-      |> maybe_enqueue_snapshot()
-
-    persist_contents(new_state.doc_id, composed_contents)
-    persist_html(new_state.doc_id, new_html)
-
-    result = %{
-      version: new_state.version,
-      change: transformed_change, # Broadcast the transformed change
-      user_id: user_id,
-      contents: composed_contents,
-      html: new_html
-    }
-
-    {:reply, {:ok, result}, new_state}
+    end
   end
 
   @impl true
@@ -270,25 +287,14 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   end
 
   defp load_content_from_db(doc_id) do
-    default_delta = []
-
     case Repo.get_by(Session, session_id: doc_id) do
       nil ->
-        default_delta
+        []
 
       %Session{} = session ->
         case Session.get_delta_content(session) do
-          nil ->
-            default_delta
-
-          delta when is_list(delta) ->
-            delta
-
-          delta when is_map(delta) ->
-            delta
-
-          _ ->
-            default_delta
+          nil -> []
+          delta -> normalize_delta(delta)
         end
     end
   end
@@ -363,4 +369,25 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
     Keyword.get(oban_config, :queues) == false or
       Keyword.get(oban_config, :testing) == :manual
   end
+
+  # Normalize delta to ensure it's a valid list format
+  defp normalize_delta(nil), do: []
+  defp normalize_delta([]), do: []
+  defp normalize_delta(delta) when is_list(delta), do: delta
+  defp normalize_delta(delta) when is_map(delta), do: [delta]
+  defp normalize_delta(_invalid), do: []
+
+  # Check if delta is empty (only retains or no meaningful operations)
+  defp empty_delta?(nil), do: true
+  defp empty_delta?([]), do: true
+  defp empty_delta?(delta) when is_list(delta) do
+    Enum.all?(delta, fn op ->
+      case op do
+        %{"retain" => _} -> true
+        %{retain: _} -> true
+        _ -> false
+      end
+    end)
+  end
+  defp empty_delta?(_), do: false
 end

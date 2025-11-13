@@ -176,13 +176,17 @@ export class CollaborativeClient {
       return;
     }
 
-    console.log('[CollaborativeClient] Receiving remote update:', payload);
+    console.log('[CollaborativeClient] Receiving remote update:', payload, 'version:', payload.version);
 
     this.isApplyingRemoteChange = true;
-    this.version = payload.version;
+    // Only update version if the remote version is newer
+    if (payload.version !== undefined && (this.version === undefined || payload.version > this.version)) {
+      this.version = payload.version;
+    }
 
     if (this.onUpdateCallback) {
-      this.onUpdateCallback(payload.change, payload.user_id, payload.user_name, payload.html, false);
+      // Pass version to callback for filtering outdated updates
+      this.onUpdateCallback(payload.change, payload.user_id, payload.user_name, payload.html, false, payload.version);
     }
 
     this.isApplyingRemoteChange = false;
@@ -220,10 +224,13 @@ export class CollaborativeClient {
   }
 
   handleDocumentUpdated(payload) {
-    this.version = payload.version;
+    if (payload.version !== undefined) {
+      this.version = payload.version;
+    }
 
     if (this.onUpdateCallback) {
-      this.onUpdateCallback(payload.contents, payload.user_id, null, payload.html, true);
+      // Pass version for full document updates
+      this.onUpdateCallback(payload.contents, payload.user_id, null, payload.html, true, payload.version);
     }
   }
 

@@ -2,6 +2,8 @@ defmodule LiveSveltePheonix.Session do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias LiveSveltePheonix.Cache
+
   schema "sessions" do
     field :session_id, :string
     field :content, :string
@@ -34,9 +36,14 @@ defmodule LiveSveltePheonix.Session do
         |> normalize_content()
         |> Map.put("html", html_content)
 
-      session
-      |> changeset(%{content: Jason.encode!(content_map)})
-      |> LiveSveltePheonix.Repo.update!()
+      result =
+        session
+        |> changeset(%{content: Jason.encode!(content_map)})
+        |> LiveSveltePheonix.Repo.update!()
+
+      # Invalidate cache after update
+      Cache.invalidate_session(session_id)
+      result
     end
   end
 
@@ -47,9 +54,18 @@ defmodule LiveSveltePheonix.Session do
         |> normalize_content()
         |> Map.put("delta", delta_content)
 
-      session
-      |> changeset(%{content: Jason.encode!(content_map)})
-      |> LiveSveltePheonix.Repo.update()
+      result =
+        session
+        |> changeset(%{content: Jason.encode!(content_map)})
+        |> LiveSveltePheonix.Repo.update()
+
+      # Invalidate cache after update
+      case result do
+        {:ok, _} -> Cache.invalidate_session(session_id)
+        _ -> :ok
+      end
+
+      result
     end
   end
 
