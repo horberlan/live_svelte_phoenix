@@ -17,12 +17,11 @@
   const intl = {
     connected: 'connected',
     disconnected: 'disconnected',
-    statusTitle: (connected, docId, userId) => 
-      `Status: ${connected ? 'Connected' : 'Disconnected'} | DocId: ${docId} | UserId: ${userId}`,
+    statusTitle: (connected, docId, userEmail) => 
+      `Status: ${connected ? 'Connected' : 'Disconnected'} | DocId: ${docId} | User: ${userEmail || 'Anonymous'}`,
     person: 'person',
     people: 'people',
     online: 'online',
-    currentlyEditing: 'Currently Editing',
   };
 
   function handleCollaboratorChange(collaboratorsList) {
@@ -72,7 +71,6 @@
     if (enableCollaboration) {
       initializeCollaboration();
     }
-    console.log("montou o userName:", userName)
   });
 
   onDestroy(() => {
@@ -82,10 +80,10 @@
   });
 </script>
 
-
+<div class="flex flex-col">
 {#if enableCollaboration}
   <div class="flex items-center gap-2 z-10 ml-4 mb-4">
-    <div title={intl.statusTitle(isConnected, docId, userId)}>
+    <div title={intl.statusTitle(isConnected, docId, userName)}>
       {#if isConnected}
         <div class="badge badge-soft badge-success">{intl.connected}</div>
       {:else}
@@ -108,11 +106,7 @@
 {/if}
 
 {#if enableCollaboration && otherCollaborators.length > 0}
-  <section class="mt-4 p-4 bg-base-200">
-    <header class="text-sm font-semibold mb-3 flex items-center gap-2 text-base-content/80">
-      {intl.currentlyEditing}
-    </header>
-
+  <section class="mt-2 p-2">
     <div class="flex flex-wrap gap-2">
       {#each otherCollaborators as [id, info] (id)}
         <div class="badge badge-info gap-2 px-3 py-2 bg-base-100 hover:bg-base-300 transition-colors cursor-pointer">
@@ -120,9 +114,10 @@
             <span class="absolute -left-2 w-2.5 h-2.5 bg-success rounded-full animate-ping"></span>
             <span class="absolute -left-2 w-2.5 h-2.5 bg-success rounded-full"></span>
           </div>
-          <span class="font-medium text-xs text-info">{info.name || id}</span>
+          <span class="font-medium text-xs text-info">{info.email || info.name || id}</span>
         </div>
       {/each}
     </div>
   </section>
 {/if}
+</div>

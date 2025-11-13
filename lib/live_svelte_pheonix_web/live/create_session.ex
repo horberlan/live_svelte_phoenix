@@ -24,7 +24,7 @@ defmodule LiveSveltePheonixWeb.CreateSession do
       Enum.with_index(session_ids, fn session_id, position ->
         query =
           from s in Session,
-            where: s.session_id == ^session_id and s.user_id == ^user.id
+            where: s.session_id == ^session_id
 
         Repo.update_all(query, set: [position: position])
       end)

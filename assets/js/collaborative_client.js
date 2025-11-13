@@ -71,7 +71,30 @@ export class CollaborativeClient {
         .join()
         .receive('ok', (response) => {
           this.version = response.version;
-          this.collaborators = new Map(Object.entries(response.collaborators || {}));
+          
+          // Initialize collaborators from response, ensuring email field exists
+          const collaboratorsMap = new Map();
+          if (response.collaborators) {
+            Object.entries(response.collaborators).forEach(([userId, info]) => {
+              collaboratorsMap.set(userId, {
+                name: info.name || info.email || userId,
+                email: info.email || info.name || userId, // Ensure email field exists
+                cursor_position: info.cursor_position || null,
+                ...info // Preserve other fields
+              });
+            });
+          }
+          
+          // Add current user to collaborators list if not already present
+          if (!collaboratorsMap.has(this.userId)) {
+            collaboratorsMap.set(this.userId, {
+              name: this.userName,
+              email: this.userName, // Store email for easy access
+              cursor_position: null
+            });
+          }
+          
+          this.collaborators = collaboratorsMap;
           this.isConnected = true;
           resolve(response);
         })
@@ -195,8 +218,15 @@ export class CollaborativeClient {
   handleRemoteCursor(payload) {
     if (payload.user_id === this.userId) return;
 
-    const collaborator = this.collaborators.get(payload.user_id) || {};
+    const collaborator = this.collaborators.get(payload.user_id) || {
+      name: payload.user_name || payload.user_id,
+      email: payload.user_name || payload.user_id
+    };
     collaborator.cursor_position = payload.position;
+    // Preserve email if not set
+    if (!collaborator.email && collaborator.name) {
+      collaborator.email = collaborator.name;
+    }
     this.collaborators.set(payload.user_id, collaborator);
 
     if (this.onCollaboratorChangeCallback) {
@@ -207,6 +237,7 @@ export class CollaborativeClient {
   handleCollaboratorJoined(payload) {
     this.collaborators.set(payload.user_id, {
       name: payload.user_name,
+      email: payload.user_name, // Store email for easy access
       cursor_position: null,
     });
 
@@ -242,10 +273,20 @@ export class CollaborativeClient {
         const meta = metas[0];
         this.collaborators.set(userId, {
           name: meta.user_name,
+          email: meta.user_name, // Store email for easy access
           online_at: meta.online_at,
         });
       }
     });
+    
+    // Ensure current user is in the list
+    if (!this.collaborators.has(this.userId)) {
+      this.collaborators.set(this.userId, {
+        name: this.userName,
+        email: this.userName,
+        cursor_position: null
+      });
+    }
 
     if (this.onCollaboratorChangeCallback) {
       this.onCollaboratorChangeCallback(Array.from(this.collaborators.entries()));
@@ -260,6 +301,7 @@ export class CollaborativeClient {
           const meta = metas[0];
           this.collaborators.set(userId, {
             name: meta.user_name,
+            email: meta.user_name, // Store email for easy access
             online_at: meta.online_at,
           });
         }

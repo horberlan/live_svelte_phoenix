@@ -17,8 +17,13 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     ~H"""
     <main class="container p-2 rounded-md mx-auto bg-base-200 mb-4">
       <div class="flex flex-wrap justify-between">
-      {@user_id}
-        <.svelte name="status/Session" socket={@socket} docId={@session_id} userId={@user_id} userName={@user_name} />
+        <.svelte
+          name="status/Session"
+          socket={@socket}
+          docId={@session_id}
+          userId={@user_id}
+          userName={@user_name}
+        />
         <.svelte name="invite/InviteUser" socket={@socket} />
       </div>
       <h1 class="text-center text-base-200">Session: {@session_id}</h1>
