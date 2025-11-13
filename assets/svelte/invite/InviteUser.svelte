@@ -21,11 +21,11 @@
   }
   let intl = {
     invite: 'Invite a member',
-    placeholder: 'mail@daisyui.com',
+    placeholder: 'email@daisyui.com',
   }
 </script>
 
-<form class="flex gap-4" on:submit={handleSubmit}>
+<form class="flex flex-wrap gap-4" on:submit={handleSubmit}>
   <input
     type="email"
     class="input input-bordered input-sm"

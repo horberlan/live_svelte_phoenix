@@ -72,6 +72,7 @@
     if (enableCollaboration) {
       initializeCollaboration();
     }
+    console.log("montou o userName:", userName)
   });
 
   onDestroy(() => {
@@ -107,7 +108,7 @@
 {/if}
 
 {#if enableCollaboration && otherCollaborators.length > 0}
-  <section class="mt-4 p-4 bg-base-200 rounded-xl shadow border border-base-300">
+  <section class="mt-4 p-4 bg-base-200">
     <header class="text-sm font-semibold mb-3 flex items-center gap-2 text-base-content/80">
       {intl.currentlyEditing}
     </header>

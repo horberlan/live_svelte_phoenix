@@ -60,6 +60,7 @@
   let isApplyingRemoteChange = false;
   let pendingRemoteChanges = [];
   let processingRemoteChanges = false;
+  let pendingChanges = []; // To track local changes not yet ack'd by the server
 
   const intl = {
     placeholder: 'Start typing...',
@@ -83,10 +84,31 @@
     }, 300);
   }
 
-  function handleRemoteUpdate(change, remoteUserId, remoteUserName) {
+  function handleRemoteUpdate(change, remoteUserId, remoteUserName, htmlContent, isFullUpdate = false) {
     if (!editor) return;
 
-    pendingRemoteChanges.push({ change, remoteUserId, remoteUserName });
+    const updatedPending = [];
+    let remoteDelta = new Delta(change.content || change);
+
+    // Transform the remote delta against all pending local changes
+    for (const pendingDelta of pendingChanges) {
+        const transformedRemote = Delta.transform(remoteDelta, pendingDelta, false);
+        const transformedPending = Delta.transform(pendingDelta, remoteDelta, true);
+        remoteDelta = transformedRemote;
+        updatedPending.push(transformedPending);
+    }
+
+    if (updatedPending.length > 0) {
+      pendingChanges = updatedPending;
+    }
+
+    pendingRemoteChanges.push({
+      change: { content: remoteDelta.toJSON() },
+      html: htmlContent,
+      remoteUserId,
+      remoteUserName,
+      isFullUpdate
+    });
     
     if (!processingRemoteChanges) {
       processRemoteChanges();
@@ -100,28 +122,43 @@
     }
 
     processingRemoteChanges = true;
-    isApplyingRemoteChange = true;
+    
+    // Take the next change from the queue
+    const { change, html, isFullUpdate } = pendingRemoteChanges.shift();
 
+    isApplyingRemoteChange = true;
     try {
-      // Save current cursor position before applying changes
       const { from, to } = editor.state.selection;
       const cursorPosition = { from, to };
       
-      // Get the last (most recent) change
-      const { change } = pendingRemoteChanges[pendingRemoteChanges.length - 1];
-      pendingRemoteChanges = []; // Clear the queue
-      
-      // Apply deltas
       const delta = new Delta(change.content);
       Delta.applyToTiptap(editor, delta);
+
+      if (typeof html === 'string' && html.length > 0) {
+        const currentHtml = editor.getHTML();
+        if (currentHtml !== html) {
+          isApplyingRemoteChange = true;
+          editor.commands.setContent(html, false);
+          isApplyingRemoteChange = false;
+        }
+      } else if (isFullUpdate && change && Array.isArray(change.content)) {
+        // As a fallback for full updates without HTML, rebuild content entirely
+        const fullDelta = new Delta(change.content);
+        editor.commands.setContent('', false);
+        Delta.applyToTiptap(editor, fullDelta);
+      }
       
       const adjustedPosition = adjustCursorPosition(delta, cursorPosition);
       requestAnimationFrame(() => {
         if (editor && !editor.isDestroyed) {
           try {
-            editor.commands.setTextSelection({ from: adjustedPosition.from, to: adjustedPosition.to });
+            // Only adjust selection if the editor doesn't have focus.
+            // If it has focus, the user is typing, and we don't want to move their cursor.
+            if (!editor.isFocused) {
+              editor.commands.setTextSelection({ from: adjustedPosition.from, to: adjustedPosition.to });
+            }
           } catch (e) {
-            // Ignore errors
+            // Ignore errors: can happen if selection is out of bounds during rapid changes
           }
         }
       });
@@ -129,7 +166,14 @@
       console.error(intl.errorApplyingUpdate, error);
     } finally {
       isApplyingRemoteChange = false;
-      processingRemoteChanges = false;
+      
+      // If there are more changes, process them in the next animation frame
+      // to avoid blocking the main thread and allow UI to update.
+      if (pendingRemoteChanges.length > 0) {
+        requestAnimationFrame(processRemoteChanges);
+      } else {
+        processingRemoteChanges = false;
+      }
     }
   }
 
@@ -170,7 +214,7 @@
         }
       }, 1000);
 
-      return response.contents; // Return contents to be applied after editor init
+      return response;
     } catch (error) {
       console.error('Failed to initialize collaboration:', error);
       isConnected = false;
@@ -199,8 +243,13 @@
     themeColors = getThemeColors();
 
     let initialContents = null;
+    let initialHtml = null;
     if (enableCollaboration) {
-      initialContents = await initializeCollaboration();
+      const initialState = await initializeCollaboration();
+      if (initialState) {
+        initialContents = initialState.contents;
+        initialHtml = initialState.html;
+      }
     }
     
     editor = new Editor({
@@ -223,13 +272,13 @@
           class: 'prose max-w-none prose-sm sm:prose-base m-5 p-4 focus:outline-none bg-base-200 shadow-md rounded-lg',
         },
       },
-      content,
+      content: enableCollaboration ? '' : content,
       onTransaction: () => {
         editor = editor;
       },
       onUpdate: ({ editor, transaction }) => {
         const isRemote = transaction.getMeta('isRemote');
-        if (isRemote || isApplyingRemoteChange) return;
+        if (isRemote || isApplyingRemoteChange || (collaborativeClient && collaborativeClient.isApplyingRemoteChange)) return;
 
         const newContent = editor.getHTML();
         
@@ -238,9 +287,13 @@
 
         if (collaborativeClient && isConnected && transaction.docChanged) {
           try {
-            const delta = Delta.fromTiptapTransaction(transaction);
-            if (delta.ops.length > 0) {
-              collaborativeClient.sendChange({ type: 'delta', content: delta.toJSON() });
+            const delta = Delta.fromTiptapTransaction(editor.state.doc, transaction);
+            const ops = delta.toJSON();
+            if (ops.length > 0) {
+              pendingChanges.push(delta);
+              collaborativeClient.sendChange({ type: 'delta', content: ops }, newContent, () => {
+                pendingChanges.shift();
+              });
             }
           } catch (error) {
             console.error(intl.errorSendingChange, error);
@@ -258,6 +311,10 @@
     if (initialContents && initialContents.length > 0) {
       const delta = new Delta(initialContents);
       Delta.applyToTiptap(editor, delta);
+    } else if (initialHtml) {
+      editor.commands.setContent(initialHtml, true);
+    } else if (content) {
+      editor.commands.setContent(content, true);
     }
 
     if (!enableCollaboration) {

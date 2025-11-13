@@ -9,10 +9,12 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   alias LiveSveltePheonix.Session
 
   @initial_state %{
+    # Document identifier
+    doc_id: nil,
     # Number of changes made to the document
     version: 0,
     # Quill-style Delta document content
-    contents: [%{insert: ""}],
+    contents: [],
     # Inverted versions of all changes (for undo/history)
     inverted_changes: [],
     # Normal changes (for redo/history)
@@ -20,7 +22,9 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
     # Connected collaborators {user_id => %{name, cursor_position}}
     collaborators: %{},
     # Timestamp of last update
-    last_updated: nil
+    last_updated: nil,
+    # Cached HTML snapshot
+    html: nil
   }
 
   def start_link(opts) do
@@ -36,8 +40,8 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   Applies a change to the document and returns the new state.
   Accepts the client version to detect conflicts.
   """
-  def update(doc_id, change, client_version, user_id) do
-    GenServer.call(via_tuple(doc_id), {:update, change, client_version, user_id})
+  def update(doc_id, change, client_version, user_id, html_snapshot \\ nil) do
+    GenServer.call(via_tuple(doc_id), {:update, change, client_version, user_id, html_snapshot})
   end
 
   @doc """
@@ -101,10 +105,13 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
     doc_id = Keyword.fetch!(opts, :doc_id)
 
     loaded_content = load_content_from_db(doc_id)
+    loaded_html = load_html_from_db(doc_id)
 
     state = %{
       @initial_state
-      | contents: loaded_content,
+      | doc_id: doc_id,
+        contents: loaded_content,
+        html: loaded_html,
         last_updated: DateTime.utc_now()
     }
 
@@ -112,12 +119,14 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   end
 
   @impl true
-  def handle_call({:update, change, client_version, user_id}, _from, state) do
+  def handle_call({:update, change, client_version, user_id, html_snapshot}, _from, state) do
     IO.inspect({:incoming_change_to_document, change}, label: "CollaborativeDocument")
 
     transformed_change =
       if client_version < state.version do
-        changes_since = Enum.take(state.changes, state.version - client_version)
+        changes_since =
+          Enum.take(state.changes, state.version - client_version)
+          |> Enum.reverse()
 
         Enum.reduce(changes_since, change, fn server_change, client_change ->
           Delta.transform(client_change, server_change, false)
@@ -131,19 +140,32 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
     inverted = Delta.invert(transformed_change, state.contents)
     composed_contents = Delta.compose(state.contents, transformed_change)
 
+    new_html =
+      cond do
+        is_binary(html_snapshot) -> html_snapshot
+        is_binary(state.html) -> state.html
+        true -> nil
+      end
+
     new_state = %{
       state
       | version: state.version + 1,
         contents: composed_contents,
         inverted_changes: [inverted | state.inverted_changes],
         changes: [transformed_change | Enum.take(state.changes, 99)],
-        last_updated: DateTime.utc_now()
+        last_updated: DateTime.utc_now(),
+        html: new_html
     }
+
+    persist_contents(new_state.doc_id, composed_contents)
+    persist_html(new_state.doc_id, html_snapshot)
 
     result = %{
       version: new_state.version,
       change: transformed_change, # Broadcast the transformed change
-      user_id: user_id
+      user_id: user_id,
+      contents: composed_contents,
+      html: new_html
     }
 
     {:reply, {:ok, result}, new_state}
@@ -160,7 +182,8 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
       version: state.version,
       contents: state.contents,
       collaborators: state.collaborators,
-      last_updated: state.last_updated
+      last_updated: state.last_updated,
+      html: state.html
     }
 
     {:reply, result, state}
@@ -236,30 +259,47 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   end
 
   defp load_content_from_db(doc_id) do
-    default_delta = [%{insert: ""}]
+    default_delta = []
 
     case Repo.get_by(Session, session_id: doc_id) do
       nil ->
         default_delta
 
-      session when is_binary(session.content) and session.content != "" ->
-        case Jason.decode(session.content) do
-          {:ok, %{"type" => "doc"}} ->
-            # This is a Prosemirror document. For now, we can't handle it.
-            # Return a default delta to prevent crashing.
-            # TODO: Implement a proper Prosemirror -> Delta converter.
+      %Session{} = session ->
+        case Session.get_delta_content(session) do
+          nil ->
             default_delta
 
-          {:ok, json_content} when is_list(json_content) ->
-            # Assume this is a valid Quill delta.
-            json_content
+          delta when is_list(delta) ->
+            delta
+
+          delta when is_map(delta) ->
+            delta
 
           _ ->
             default_delta
         end
-
-      _session ->
-        default_delta
     end
+  end
+
+  defp load_html_from_db(doc_id) do
+    case Repo.get_by(Session, session_id: doc_id) do
+      nil -> nil
+      %Session{} = session -> Session.get_html_content(session)
+    end
+  end
+
+  defp persist_contents(nil, _contents), do: :ok
+
+  defp persist_contents(doc_id, contents) do
+    # Persist asynchronously? For now we perform it inline so the latest
+    # state is durable before acknowledging the client.
+    Session.update_delta_content(doc_id, contents)
+  end
+
+  defp persist_html(_doc_id, nil), do: :ok
+
+  defp persist_html(doc_id, html) when is_binary(html) do
+    Session.update_content(doc_id, html)
   end
 end

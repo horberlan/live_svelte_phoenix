@@ -96,24 +96,31 @@ export class CollaborativeClient {
     }
   }
 
-  sendChange(changeData) {
+  sendChange(changeData, htmlContent, ackCallback) {
     if (this.isApplyingRemoteChange) {
       return;
     }
 
-    // Se for um objeto Delta, converte para JSON
-    // Se já for um objeto (como full_update), usa direto
     const change = changeData.toJSON ? changeData.toJSON() : changeData;
 
     console.log('[CollaborativeClient] Sending change:', change, 'Version:', this.version);
 
+    const payload = {
+      change: change,
+      version: this.version,
+    };
+
+    if (typeof htmlContent === 'string') {
+      payload.html = htmlContent;
+    }
+
     this.channel
-      .push('update', {
-        change: change,
-        version: this.version,
-      })
+      .push('update', payload)
       .receive('ok', (response) => {
         this.version = response.version;
+        if (ackCallback) {
+          ackCallback(response);
+        }
         console.log('[CollaborativeClient] Change sent successfully. New version:', this.version);
       })
       .receive('error', (response) => {
@@ -175,7 +182,7 @@ export class CollaborativeClient {
     this.version = payload.version;
 
     if (this.onUpdateCallback) {
-      this.onUpdateCallback(payload.change, payload.user_id, payload.user_name);
+      this.onUpdateCallback(payload.change, payload.user_id, payload.user_name, payload.html, false);
     }
 
     this.isApplyingRemoteChange = false;
@@ -216,7 +223,7 @@ export class CollaborativeClient {
     this.version = payload.version;
 
     if (this.onUpdateCallback) {
-      this.onUpdateCallback(payload.contents, payload.user_id, null, true);
+      this.onUpdateCallback(payload.contents, payload.user_id, null, payload.html, true);
     }
   }
 

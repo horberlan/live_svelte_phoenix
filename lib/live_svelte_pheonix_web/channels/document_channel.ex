@@ -5,7 +5,7 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
   """
   use LiveSveltePheonixWeb, :channel
 
-  alias LiveSveltePheonix.{CollaborativeDocument, DocumentSupervisor, Session, Repo}
+  alias LiveSveltePheonix.{CollaborativeDocument, DocumentSupervisor, Session}
   alias LiveSveltePheonixWeb.Presence
 
   @impl true
@@ -46,21 +46,23 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
   end
 
   @impl true
-  def handle_in("update", %{"change" => %{"content" => delta_content, "type" => "delta"}, "version" => client_version}, socket) do
+  def handle_in("update", %{"change" => %{"content" => delta_content, "type" => "delta"}, "version" => client_version} = params, socket) do
     doc_id = socket.assigns.doc_id
     user_id = socket.assigns.user_id
+    html_snapshot = Map.get(params, "html")
 
     IO.inspect({:received_update_event, doc_id, user_id, client_version, delta_content}, label: "DocumentChannel")
 
-    case CollaborativeDocument.update(doc_id, delta_content, client_version, user_id) do
+    case CollaborativeDocument.update(doc_id, delta_content, client_version, user_id, html_snapshot) do
       {:ok, result} ->
         IO.inspect({:broadcasting_remote_update, doc_id, result.version, user_id, result.change}, label: "DocumentChannel")
         # Broadcast delta to other clients
         broadcast_from!(socket, "remote_update", %{
-          change: result.change,
+          change: %{type: "delta", content: result.change},
           version: result.version,
           user_id: user_id,
-          user_name: socket.assigns.user_name
+          user_name: socket.assigns.user_name,
+          html: result.html
         })
 
         {:reply, {:ok, result}, socket}
@@ -116,10 +118,11 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
         broadcast!(socket, "document_updated", %{
           contents: contents,
           version: state.version,
-          user_id: socket.assigns.user_id
+          user_id: socket.assigns.user_id,
+          html: state.html
         })
 
-        {:reply, {:ok, %{contents: contents, version: state.version}}, socket}
+        {:reply, {:ok, %{contents: contents, version: state.version, html: state.html}}, socket}
 
       {:error, reason} ->
         {:reply, {:error, %{reason: reason}}, socket}
@@ -159,15 +162,7 @@ defmodule LiveSveltePheonixWeb.DocumentChannel do
 
 
   defp save_content_to_db(doc_id, content) do
-    case Repo.get_by(Session, session_id: doc_id) do
-      nil -> :ok  # Session doesn't exist, skip
-      session ->
-        # Save as JSON string
-        json_string = Jason.encode!(content)
-        session
-        |> Session.changeset(%{content: json_string})
-        |> Repo.update()
-    end
+    Session.update_delta_content(doc_id, content)
   end
 
 end

@@ -100,8 +100,10 @@ defmodule LiveSveltePheonixWeb.CreateSession do
   defp format_sessions_table(session) do
     {:ok, updated_at} = LiveSveltePheonix.Utils.huminize_date(session.updated_at)
 
+    html_content = Session.get_html_content(session, "")
+
     session_title =
-      case LiveSveltePheonix.Utils.parse_first_tag_text(session.content) do
+      case LiveSveltePheonix.Utils.parse_first_tag_text(html_content) do
         {:ok, children} -> Floki.text(children)
         _ -> ""
       end

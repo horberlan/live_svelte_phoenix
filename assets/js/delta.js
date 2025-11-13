@@ -1,3 +1,7 @@
+// A heavily simplified but more correct implementation of Deltas
+// based on the official quill-delta library.
+// This is NOT a full implementation, but it is more robust
+// than the previous one.
 
 export class DeltaOp {
     static insert(text, attributes = null) {
@@ -19,335 +23,137 @@ export class DeltaOp {
 
 export class Delta {
     constructor(ops = []) {
-        this.ops = ops;
+        this.ops = ops || [];
     }
 
-    /**
-     * Computes the difference between two text strings as a Delta
-     * This is a proper diff implementation following Delta best practices
-     * @param {string} oldText - The original text
-     * @param {string} newText - The new text
-     * @returns {Delta} A delta representing the changes
-     */
-    static diff(oldText, newText) {
-        const ops = [];
-
-        // Find common prefix
-        let prefixLength = 0;
-        while (
-            prefixLength < oldText.length &&
-            prefixLength < newText.length &&
-            oldText[prefixLength] === newText[prefixLength]
-        ) {
-            prefixLength++;
+    insert(text, attributes) {
+        if (typeof text === 'string' && text.length === 0) {
+            return this;
         }
-
-        // Find common suffix
-        let suffixLength = 0;
-        while (
-            suffixLength < oldText.length - prefixLength &&
-            suffixLength < newText.length - prefixLength &&
-            oldText[oldText.length - 1 - suffixLength] === newText[newText.length - 1 - suffixLength]
-        ) {
-            suffixLength++;
-        }
-
-        // Build Delta operations
-        if (prefixLength > 0) {
-            ops.push(DeltaOp.retain(prefixLength));
-        }
-
-        const deletedLength = oldText.length - prefixLength - suffixLength;
-        if (deletedLength > 0) {
-            ops.push(DeltaOp.delete(deletedLength));
-        }
-
-        const insertedText = newText.substring(prefixLength, newText.length - suffixLength);
-        if (insertedText.length > 0) {
-            ops.push(DeltaOp.insert(insertedText));
-        }
-
-        return new Delta(ops);
+        return this.push(DeltaOp.insert(text, attributes));
     }
 
-    static fromTiptapTransaction(tr) {
-        const ops = [];
-
-        // Convert both documents to complete deltas with formatting
-        const oldDelta = Delta.fromTiptapDoc(tr.before);
-        const newDelta = Delta.fromTiptapDoc(tr.doc);
-
-        // Calculate the difference between the two deltas
-        return Delta.diffDeltas(oldDelta, newDelta);
+    delete(length) {
+        if (length <= 0) {
+            return this;
+        }
+        return this.push(DeltaOp.delete(length));
     }
 
-    /**
-     * Calculates the difference between two deltas (complete documents)
-     * @param {Delta} oldDelta - Delta of the old document
-     * @param {Delta} newDelta - Delta of the new document
-     * @returns {Delta} Delta representing the changes
-     */
-    static diffDeltas(oldDelta, newDelta) {
-        const ops = [];
-        let oldIndex = 0;
-        let newIndex = 0;
+    retain(length, attributes) {
+        if (length <= 0) {
+            return this;
+        }
+        return this.push(DeltaOp.retain(length, attributes));
+    }
 
-        const oldOps = oldDelta.ops || [];
-        const newOps = newDelta.ops || [];
+    push(newOp) {
+        let index = this.ops.length;
+        let lastOp = this.ops[index - 1];
+        newOp = { ...newOp };
+        if (typeof lastOp === 'object') {
+            if (typeof newOp.delete === 'number' && typeof lastOp.delete === 'number') {
+                this.ops[index - 1] = { delete: lastOp.delete + newOp.delete };
+                return this;
+            }
+            // Since we do not have any attributes, we can combine inserts
+            // and retains with the same attributes.
+            if (typeof lastOp.insert === 'string' && typeof newOp.insert === 'string' &&
+                JSON.stringify(lastOp.attributes) === JSON.stringify(newOp.attributes)) {
+                this.ops[index - 1] = { insert: lastOp.insert + newOp.insert };
+                if (newOp.attributes) this.ops[index - 1].attributes = newOp.attributes;
+                return this;
+            }
+            if (typeof lastOp.retain === 'number' && typeof newOp.retain === 'number' &&
+                JSON.stringify(lastOp.attributes) === JSON.stringify(newOp.attributes)) {
+                this.ops[index - 1] = { retain: lastOp.retain + newOp.retain };
+                if (newOp.attributes) this.ops[index - 1].attributes = newOp.attributes;
+                return this;
+            }
+        }
+        this.ops.push(newOp);
+        return this;
+    }
 
-        while (oldIndex < oldOps.length || newIndex < newOps.length) {
-            const oldOp = oldOps[oldIndex];
-            const newOp = newOps[newIndex];
+    chop() {
+        const lastOp = this.ops[this.ops.length - 1];
+        if (lastOp && typeof lastOp.retain === 'number' && !lastOp.attributes) {
+            this.ops.pop();
+        }
+        return this;
+    }
 
-            if (!oldOp) {
-                if (newOp.insert) {
-                    ops.push(newOp);
-                }
-                newIndex++;
-                continue;
+    static fromTiptapTransaction(doc, tr) {
+        const delta = new Delta();
+        if (!tr.docChanged) {
+            return delta;
+        }
+
+        let currentPos = 0;
+
+        tr.steps.forEach(step => {
+            const { from, to } = step;
+
+            if (from > currentPos) {
+                delta.retain(from - currentPos);
             }
 
-            if (!newOp) {
-                if (oldOp.insert) {
-                    const length = typeof oldOp.insert === 'string' ? oldOp.insert.length : 1;
-                    ops.push(DeltaOp.delete(length));
-                }
-                oldIndex++;
-                continue;
-            }
+            if (step.slice) {
+                const content = step.slice.content;
+                let textContent = '';
+                let openMarks = [];
 
-            if (oldOp.insert && newOp.insert) {
-                const oldText = typeof oldOp.insert === 'string' ? oldOp.insert : '';
-                const newText = typeof newOp.insert === 'string' ? newOp.insert : '';
+                content.forEach(node => {
+                    if (node.isText) {
+                        const nodeMarks = node.marks.map(mark => mark.toJSON());
+                        
+                        // Close marks that are not in the new node
+                        const newOpenMarks = [];
+                        openMarks.forEach(mark => {
+                            if (!nodeMarks.some(m => JSON.stringify(m) === JSON.stringify(mark))) {
+                                // mark is closed
+                            } else {
+                                newOpenMarks.push(mark);
+                            }
+                        });
+                        openMarks = newOpenMarks;
 
-                const sameText = oldText === newText;
-                const sameAttrs = JSON.stringify(oldOp.attributes || {}) === JSON.stringify(newOp.attributes || {});
+                        // Open marks that are new
+                        nodeMarks.forEach(mark => {
+                            if (!openMarks.some(m => JSON.stringify(m) === JSON.stringify(mark))) {
+                                openMarks.push(mark);
+                            }
+                        });
 
-                if (sameText && sameAttrs) {
-                    ops.push(DeltaOp.retain(oldText.length, oldOp.attributes));
-                    oldIndex++;
-                    newIndex++;
-                } else if (sameText && !sameAttrs) {
-                    ops.push(DeltaOp.retain(oldText.length, newOp.attributes));
-                    oldIndex++;
-                    newIndex++;
-                } else {
-                    if (oldText.length > 0) {
-                        ops.push(DeltaOp.delete(oldText.length));
+                        textContent += node.text;
                     }
-                    if (newText.length > 0) {
-                        ops.push(DeltaOp.insert(newText, newOp.attributes));
-                    }
-                    oldIndex++;
-                    newIndex++;
+                });
+
+                if (to > from) {
+                    delta.delete(to - from);
                 }
+
+                if (textContent) {
+                    const attributes = {};
+                    openMarks.forEach(mark => {
+                        if (mark.type === 'bold') attributes.bold = true;
+                        if (mark.type === 'italic') attributes.italic = true;
+                    });
+                    delta.insert(textContent, Object.keys(attributes).length > 0 ? attributes : null);
+                }
+
+            } else if (to > from) {
+                delta.delete(to - from);
             }
-        }
-
-        return new Delta(ops);
-    }
-
-    static marksToAttributes(marks) {
-        if (!marks || marks.length === 0) return null;
-
-        const attributes = {};
-        marks.forEach((mark) => {
-            switch (mark.type.name) {
-                case 'bold':
-                    attributes.bold = true;
-                    break;
-                case 'italic':
-                    attributes.italic = true;
-                    break;
-                case 'underline':
-                    attributes.underline = true;
-                    break;
-                case 'strike':
-                    attributes.strike = true;
-                    break;
-                case 'code':
-                    attributes.code = true;
-                    break;
-                case 'link':
-                    attributes.link = mark.attrs.href;
-                    break;
-                case 'textStyle':
-                    if (mark.attrs.color) attributes.color = mark.attrs.color;
-                    break;
-                default:
-                    break;
-            }
+            currentPos = to;
         });
 
-        return Object.keys(attributes).length > 0 ? attributes : null;
-    }
-
-    static fromTiptapDoc(doc) {
-        const ops = [];
-        let isFirstNode = true;
-
-        doc.descendants((node, pos, parent) => {
-            if (node.isText) {
-                // Text with formatting marks (bold, italic, etc)
-                const attributes = Delta.marksToAttributes(node.marks);
-
-                // Add block attributes from parent node
-                const blockAttributes = Delta.nodeToBlockAttributes(parent);
-                const combinedAttributes = { ...attributes, ...blockAttributes };
-
-                ops.push(DeltaOp.insert(node.text, Object.keys(combinedAttributes).length > 0 ? combinedAttributes : null));
-            } else if (node.type.name === 'hardBreak') {
-                ops.push(DeltaOp.insert('\n'));
-            } else if (node.isBlock && !isFirstNode) {
-                // Add line break between blocks (paragraphs, headings, etc)
-                const blockAttributes = Delta.nodeToBlockAttributes(node);
-                ops.push(DeltaOp.insert('\n', Object.keys(blockAttributes).length > 0 ? blockAttributes : null));
-            }
-
-            if (node.isBlock) {
-                isFirstNode = false;
-            }
-        });
-
-        return new Delta(ops);
-    }
-
-    /**
-     * Converts TipTap node attributes to Delta block attributes
-     * @param {Node} node - TipTap node
-     * @returns {Object} Block attributes
-     */
-    static nodeToBlockAttributes(node) {
-        if (!node || !node.type) return {};
-
-        const attributes = {};
-
-        switch (node.type.name) {
-            case 'heading':
-                attributes.header = node.attrs.level;
-                break;
-            case 'bulletList':
-                attributes.list = 'bullet';
-                break;
-            case 'orderedList':
-                attributes.list = 'ordered';
-                break;
-            case 'listItem':
-                // Inherit from parent
-                if (node.parent && node.parent.type.name === 'bulletList') {
-                    attributes.list = 'bullet';
-                } else if (node.parent && node.parent.type.name === 'orderedList') {
-                    attributes.list = 'ordered';
-                }
-                break;
-            case 'blockquote':
-                attributes.blockquote = true;
-                break;
-            case 'codeBlock':
-                attributes.codeBlock = true;
-                if (node.attrs.language) {
-                    attributes.language = node.attrs.language;
-                }
-                break;
-            default:
-                break;
+        const docSize = doc.content.size;
+        if (currentPos < docSize) {
+            delta.retain(docSize - currentPos);
         }
 
-        return attributes;
-    }
-
-    /**
-     * Transforms a cursor position through a Delta operation
-     * This is the proper way to handle cursor preservation in OT
-     * @param {number} index - The cursor position to transform
-     * @param {Delta} delta - The delta operation to transform through
-     * @param {boolean} priority - Whether this cursor has priority (for tie-breaking)
-     * @returns {number} The transformed cursor position
-     */
-    static transformIndex(index, delta, priority = false) {
-        let transformedIndex = index;
-        let currentIndex = 0;
-
-        for (const op of delta.ops) {
-            if (op.retain !== undefined) {
-                currentIndex += op.retain;
-            } else if (op.insert !== undefined) {
-                const text = typeof op.insert === 'string' ? op.insert : '';
-                const insertLength = text.length;
-
-                if (currentIndex < index || (currentIndex === index && priority)) {
-                    transformedIndex += insertLength;
-                }
-                currentIndex += insertLength;
-            } else if (op.delete !== undefined) {
-                const deleteLength = op.delete;
-                const deleteEnd = currentIndex + deleteLength;
-
-                if (deleteEnd <= index) {
-                    transformedIndex -= deleteLength;
-                } else if (currentIndex < index) {
-                    transformedIndex -= (index - currentIndex);
-                    transformedIndex = currentIndex;
-                }
-            }
-        }
-
-        return Math.max(0, transformedIndex);
-    }
-
-    /**
-     * Composes two deltas into a single delta
-     * This is used to combine multiple operations
-     * @param {Delta} a - First delta
-     * @param {Delta} b - Second delta to apply after first
-     * @returns {Delta} Composed delta
-     */
-    static compose(a, b) {
-        const ops = [];
-        let aIndex = 0;
-        let bIndex = 0;
-
-        while (aIndex < a.ops.length || bIndex < b.ops.length) {
-            const aOp = a.ops[aIndex];
-            const bOp = b.ops[bIndex];
-
-            if (!bOp) {
-                ops.push(aOp);
-                aIndex++;
-            } else if (!aOp) {
-                ops.push(bOp);
-                bIndex++;
-            } else if (bOp.insert !== undefined) {
-                ops.push(bOp);
-                bIndex++;
-            } else if (aOp.delete !== undefined) {
-                ops.push(aOp);
-                aIndex++;
-            } else if (bOp.delete !== undefined) {
-                ops.push(bOp);
-                bIndex++;
-            } else {
-                // Both are retains
-                const aRetain = aOp.retain || 0;
-                const bRetain = bOp.retain || 0;
-
-                if (aRetain < bRetain) {
-                    ops.push({ retain: aRetain, ...bOp.attributes && { attributes: bOp.attributes } });
-                    aIndex++;
-                    b.ops[bIndex] = { retain: bRetain - aRetain, ...bOp.attributes && { attributes: bOp.attributes } };
-                } else if (aRetain > bRetain) {
-                    ops.push({ retain: bRetain, ...bOp.attributes && { attributes: bOp.attributes } });
-                    bIndex++;
-                    a.ops[aIndex] = { retain: aRetain - bRetain, ...aOp.attributes && { attributes: aOp.attributes } };
-                } else {
-                    ops.push({ retain: aRetain, ...bOp.attributes && { attributes: bOp.attributes } });
-                    aIndex++;
-                    bIndex++;
-                }
-            }
-        }
-
-        return new Delta(ops);
+        return delta.chop();
     }
 
     static applyToTiptap(editor, delta) {
@@ -361,120 +167,235 @@ export class Delta {
 
         delta.ops.forEach((op) => {
             if (op.retain !== undefined) {
-                const start = index;
-                const end = index + op.retain;
-
                 if (op.attributes) {
-                    // Apply formatting marks (bold, italic, etc)
-                    Object.entries(op.attributes).forEach(([key, value]) => {
-                        if (key === 'header' || key === 'list' || key === 'blockquote' || key === 'codeBlock') {
-                            // Block attributes are applied to the node, not as marks
-                            return;
-                        }
+                    const from = index;
+                    const to = index + op.retain;
+                    const docSize = tr.doc.content.size;
 
-                        const markType = editor.schema.marks[key];
-                        if (!markType) return;
-
-                        if (value === null || value === false) {
-                            tr.removeMark(start, end, markType);
-                        } else {
-                            const attrs = typeof value === 'object' ? value : undefined;
-                            const mark = markType.create(attrs);
-                            tr.addMark(start, end, mark);
-                        }
-                    });
-                }
-
-                index += op.retain;
-            } else if (op.insert !== undefined) {
-                const text = typeof op.insert === 'string' ? op.insert : '';
-
-                if (text) {
-                    // Check if it's a line break with block attributes
-                    if (text === '\n' && op.attributes) {
-                        const blockAttrs = Delta.attributesToBlockType(op.attributes);
-
-                        if (blockAttrs.type) {
-                            // Insert a new block with the correct type
-                            const nodeType = editor.schema.nodes[blockAttrs.type];
-                            if (nodeType) {
-                                const node = nodeType.create(blockAttrs.attrs);
-                                tr.insert(index, node);
-                                index += node.nodeSize;
-                            } else {
-                                tr.insertText(text, index);
-                                index += text.length;
-                            }
-                        } else {
-                            tr.insertText(text, index);
-                            index += text.length;
-                        }
+                    if (from > to || from > docSize) {
+                        // Invalid range, skip.
                     } else {
-                        // Insert normal text
-                        tr.insertText(text, index);
-
-                        // Apply formatting marks
-                        if (op.attributes) {
-                            Object.entries(op.attributes).forEach(([key, value]) => {
-                                if (key === 'header' || key === 'list' || key === 'blockquote' || key === 'codeBlock') {
-                                    return;
-                                }
-
-                                const markType = editor.schema.marks[key];
-                                if (markType && value !== null && value !== false) {
-                                    const attrs = typeof value === 'object' ? value : undefined;
-                                    const mark = markType.create(attrs);
-                                    tr.addMark(index, index + text.length, mark);
-                                }
-                            });
-                        }
-
-                        index += text.length;
+                        const marks = [];
+                        Object.entries(op.attributes).forEach(([key, value]) => {
+                            const markType = editor.schema.marks[key];
+                            if (markType && value) {
+                                marks.push(markType.create());
+                            }
+                        });
+                        tr.addMark(from, Math.min(to, docSize), marks);
                     }
                 }
+                index += op.retain;
+            } else if (op.insert !== undefined) {
+                const text = op.insert;
+                if (text) {
+                    const marks = [];
+                    if (op.attributes) {
+                        Object.entries(op.attributes).forEach(([key, value]) => {
+                            const markType = editor.schema.marks[key];
+                            if (markType && value) {
+                                marks.push(markType.create());
+                            }
+                        });
+                    }
+                    // Clamp insert position to be within the current document size
+                    const insertPos = Math.min(index, tr.doc.content.size);
+                    tr.insertText(text, insertPos, marks);
+                    index += text.length;
+                }
             } else if (op.delete !== undefined) {
-                tr.delete(index, index + op.delete);
+                const from = index;
+                const to = index + op.delete;
+                const docSize = tr.doc.content.size;
+                
+                if (from > to || from > docSize) {
+                    // Invalid range, skip
+                } else {
+                    tr.delete(from, Math.min(to, docSize));
+                }
             }
         });
 
-        editor.view.dispatch(tr);
+        if (tr.docChanged) {
+            editor.view.dispatch(tr);
+        }
     }
 
-    /**
-     * Converts Delta attributes to TipTap block type
-     * @param {Object} attributes - Delta attributes
-     * @returns {Object} Block type and attributes
-     */
-    static attributesToBlockType(attributes) {
-        if (!attributes) return { type: null, attrs: {} };
-
-        if (attributes.header) {
-            return { type: 'heading', attrs: { level: attributes.header } };
+    static transformAttributes(a, b, priority) {
+        if (typeof a !== 'object') a = {};
+        if (typeof b !== 'object') b = {};
+        if (typeof a !== 'object' || typeof b !== 'object') return undefined;
+        if (!priority) { // b has priority
+            return b;
         }
-
-        if (attributes.list === 'bullet') {
-            return { type: 'bulletList', attrs: {} };
+        const attributes = {};
+        for (const key in b) {
+            if (b[key] !== null) attributes[key] = b[key];
         }
-
-        if (attributes.list === 'ordered') {
-            return { type: 'orderedList', attrs: {} };
+        for (const key in a) {
+            if (a[key] !== null && b[key] === undefined) {
+                attributes[key] = a[key];
+            }
         }
+        return Object.keys(attributes).length > 0 ? attributes : undefined;
+    }
 
-        if (attributes.blockquote) {
-            return { type: 'blockquote', attrs: {} };
+    static transform(deltaA, deltaB, priority = false) {
+        deltaA = new Delta(deltaA.ops || deltaA);
+        deltaB = new Delta(deltaB.ops || deltaB);
+        const delta = new Delta();
+        const a = new DeltaIterator(deltaA.ops);
+        const b = new DeltaIterator(deltaB.ops);
+        while (a.hasNext() || b.hasNext()) {
+            if (a.peekType() === 'insert' && (priority || b.peekType() !== 'insert')) {
+                delta.retain(a.peekLength());
+                a.next();
+            } else if (b.peekType() === 'insert') {
+                delta.insert(b.peek().insert, b.peek().attributes);
+                b.next();
+            } else {
+                const length = Math.min(a.peekLength(), b.peekLength());
+                const aOp = a.next(length);
+                const bOp = b.next(length);
+                if (aOp.delete) {
+                    // b also deletes, or keeps
+                    // noop
+                } else if (bOp.delete) {
+                    delta.delete(length);
+                } else { // both are retains
+                    const attributes = Delta.transformAttributes(aOp.attributes, bOp.attributes, priority);
+                    delta.retain(length, attributes);
+                }
+            }
         }
+        return delta.chop();
+    }
 
-        if (attributes.codeBlock) {
-            return {
-                type: 'codeBlock',
-                attrs: attributes.language ? { language: attributes.language } : {}
-            };
+    static compose(deltaA, deltaB) {
+        const a = new DeltaIterator(deltaA.ops);
+        const b = new DeltaIterator(deltaB.ops);
+        const delta = new Delta();
+        while (a.hasNext() || b.hasNext()) {
+            if (b.peekType() === 'insert') {
+                delta.insert(b.peek().insert, b.peek().attributes);
+                b.next();
+            } else if (a.peekType() === 'delete') {
+                delta.delete(a.peekLength());
+                a.next();
+            } else {
+                const length = Math.min(a.peekLength(), b.peekLength());
+                const aOp = a.next(length);
+                const bOp = b.next(length);
+                if (typeof bOp.retain === 'number') {
+                    const newOp = { retain: length };
+                    if (aOp.attributes) newOp.attributes = aOp.attributes;
+                    if (bOp.attributes) newOp.attributes = bOp.attributes;
+                    delta.push(newOp);
+                } else if (typeof bOp.delete === 'number') {
+                    delta.delete(length);
+                } else if (typeof aOp.retain === 'number') {
+                    delta.insert(bOp.insert, bOp.attributes);
+                }
+            }
         }
+        return delta.chop();
+    }
 
-        return { type: null, attrs: {} };
+    static transformIndex(index, delta, priority = false) {
+        let newIndex = index;
+        let cursor = 0;
+        (delta.ops || delta).forEach(op => {
+            if (op.retain) {
+                cursor += op.retain;
+            } else if (op.insert) {
+                if (cursor < newIndex || (cursor === newIndex && !priority)) {
+                    newIndex += op.insert.length;
+                }
+                cursor += op.insert.length;
+            } else if (op.delete) {
+                if (cursor < newIndex) {
+                    newIndex -= Math.min(op.delete, newIndex - cursor);
+                }
+            }
+        });
+        return newIndex;
     }
 
     toJSON() {
         return this.ops;
+    }
+}
+
+class DeltaIterator {
+    constructor(ops) {
+        this.ops = ops;
+        this.index = 0;
+        this.offset = 0;
+    }
+
+    hasNext() {
+        return this.peek() != null;
+    }
+
+    peek() {
+        return this.ops[this.index];
+    }
+
+    peekLength() {
+        if (this.ops[this.index]) {
+            if (typeof this.ops[this.index].delete === 'number') {
+                return this.ops[this.index].delete;
+            }
+            if (typeof this.ops[this.index].retain === 'number') {
+                return this.ops[this.index].retain;
+            }
+            if (typeof this.ops[this.index].insert === 'string') {
+                return this.ops[this.index].insert.length;
+            }
+        }
+        return 0;
+    }
+
+    peekType() {
+        if (this.ops[this.index]) {
+            if (typeof this.ops[this.index].delete === 'number') {
+                return 'delete';
+            }
+            if (typeof this.ops[this.index].retain === 'number') {
+                return 'retain';
+            }
+            return 'insert';
+        }
+        return 'retain';
+    }
+
+    next(length) {
+        const nextOp = this.ops[this.index];
+        if (nextOp) {
+            const offset = this.offset;
+            const opLength = this.peekLength();
+            if (length >= opLength - offset) {
+                length = opLength - offset;
+                this.index += 1;
+                this.offset = 0;
+            } else {
+                this.offset += length;
+            }
+            if (typeof nextOp.delete === 'number') {
+                return { delete: length };
+            }
+            const op = {};
+            if (nextOp.attributes) {
+                op.attributes = nextOp.attributes;
+            }
+            if (typeof nextOp.retain === 'number') {
+                op.retain = length;
+            } else if (typeof nextOp.insert === 'string') {
+                op.insert = nextOp.insert.substr(offset, length);
+            }
+            return op;
+        } else {
+            return { retain: Infinity };
+        }
     }
 }

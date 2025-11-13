@@ -27,11 +27,55 @@ defmodule LiveSveltePheonix.Session do
     |> validate_required([:session_id, :user_id])
   end
 
-  def update_content(session_id, content) do
-    LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id)
-    |> changeset(%{content: content})
-    |> LiveSveltePheonix.Repo.update!()
+  def update_content(session_id, html_content) do
+    with %__MODULE__{} = session <- LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id) do
+      content_map =
+        session.content
+        |> normalize_content()
+        |> Map.put("html", html_content)
+
+      session
+      |> changeset(%{content: Jason.encode!(content_map)})
+      |> LiveSveltePheonix.Repo.update!()
+    end
   end
+
+  def update_delta_content(session_id, delta_content) do
+    with %__MODULE__{} = session <- LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id) do
+      content_map =
+        session.content
+        |> normalize_content()
+        |> Map.put("delta", delta_content)
+
+      session
+      |> changeset(%{content: Jason.encode!(content_map)})
+      |> LiveSveltePheonix.Repo.update()
+    end
+  end
+
+  def get_html_content(%__MODULE__{} = session, default \\ nil) do
+    session.content
+    |> normalize_content()
+    |> Map.get("html", default)
+  end
+
+  def get_delta_content(%__MODULE__{} = session) do
+    session.content
+    |> normalize_content()
+    |> Map.get("delta")
+  end
+
+  defp normalize_content(nil), do: %{}
+  defp normalize_content(""), do: %{}
+
+  defp normalize_content(content) when is_binary(content) do
+    case Jason.decode(content) do
+      {:ok, map} when is_map(map) -> map
+      _ -> %{"html" => content}
+    end
+  end
+
+  defp normalize_content(content) when is_map(content), do: content
 
   def update_shared_users(session_id, user_email) do
     this_session = LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id)

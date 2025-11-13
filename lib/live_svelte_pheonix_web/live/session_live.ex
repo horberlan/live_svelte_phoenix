@@ -16,7 +16,8 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   def render(assigns) do
     ~H"""
     <main class="container p-2 rounded-md mx-auto bg-base-200 mb-4">
-      <div class="flex justify-between">
+      <div class="flex flex-wrap justify-between">
+      {@user_id}
         <.svelte name="status/Session" socket={@socket} docId={@session_id} userId={@user_id} userName={@user_name} />
         <.svelte name="invite/InviteUser" socket={@socket} />
       </div>
@@ -103,7 +104,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
 
   defp get_current_user(session_data) do
     with user_token when not is_nil(user_token) <- session_data["user_token"],
-         user when not is_nil(user) <- Accounts.get_user_by_session_token(user_token) do
+        user when not is_nil(user) <- Accounts.get_user_by_session_token(user_token) do
       user
     else
       _ -> nil
@@ -111,7 +112,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   end
 
   defp get_session_content(session) do
-    session.content || @default_editor_content
+    Session.get_html_content(session, @default_editor_content)
   end
 
   defp update_session_content(session_id, content) do
