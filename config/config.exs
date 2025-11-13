@@ -11,6 +11,13 @@ config :live_svelte_pheonix,
   ecto_repos: [LiveSveltePheonix.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :live_svelte_pheonix, Oban,
+  repo: LiveSveltePheonix.Repo,
+  queues: [default: 10, document_snapshots: 2],
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7, limit: 10_000}
+  ]
+
 # Configures the endpoint
 config :live_svelte_pheonix, LiveSveltePheonixWeb.Endpoint,
   url: [host: "localhost"],

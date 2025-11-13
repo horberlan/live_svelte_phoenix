@@ -62,7 +62,8 @@ defmodule LiveSveltePheonix.MixProject do
       {:bandit, "~> 1.5"},
       {:uuid, "~> 1.1"},
       {:timex, "~> 3.0"},
-      {:delta, "~> 0.4.1"}
+      {:delta, "~> 0.4.1"},
+      {:oban, "~> 2.17"}
     ]
   end
 

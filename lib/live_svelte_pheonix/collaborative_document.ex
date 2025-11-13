@@ -5,8 +5,14 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
   """
   use GenServer
 
+  require Logger
+
+  alias Oban
   alias LiveSveltePheonix.Repo
   alias LiveSveltePheonix.Session
+  alias LiveSveltePheonix.Workers.DocumentSnapshotWorker
+
+  @snapshot_delta_threshold 50
 
   @initial_state %{
     # Document identifier
@@ -24,7 +30,9 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
     # Timestamp of last update
     last_updated: nil,
     # Cached HTML snapshot
-    html: nil
+    html: nil,
+    # Changes since the last background snapshot
+    changes_since_snapshot: 0
   }
 
   def start_link(opts) do
@@ -147,18 +155,21 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
         true -> nil
       end
 
-    new_state = %{
+    new_state =
+      %{
       state
       | version: state.version + 1,
         contents: composed_contents,
         inverted_changes: [inverted | state.inverted_changes],
         changes: [transformed_change | Enum.take(state.changes, 99)],
         last_updated: DateTime.utc_now(),
-        html: new_html
-    }
+        html: new_html,
+        changes_since_snapshot: state.changes_since_snapshot + 1
+      }
+      |> maybe_enqueue_snapshot()
 
     persist_contents(new_state.doc_id, composed_contents)
-    persist_html(new_state.doc_id, html_snapshot)
+    persist_html(new_state.doc_id, new_html)
 
     result = %{
       version: new_state.version,
@@ -289,6 +300,46 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
     end
   end
 
+  defp maybe_enqueue_snapshot(%{doc_id: nil} = state), do: state
+
+  defp maybe_enqueue_snapshot(%{changes_since_snapshot: changes} = state)
+       when changes < @snapshot_delta_threshold,
+       do: state
+
+  defp maybe_enqueue_snapshot(%{doc_id: doc_id} = state) do
+    if oban_disabled?() do
+      %{state | changes_since_snapshot: 0}
+    else
+      job =
+        DocumentSnapshotWorker.new(%{
+          "doc_id" => doc_id,
+          "target_version" => state.version
+        })
+
+      case Oban.insert(job) do
+        {:ok, _job} ->
+          :ok
+
+        {:error, :conflict} ->
+          :ok
+
+        {:error, reason} ->
+          Logger.warning(
+            "Failed to enqueue snapshot job for #{inspect(doc_id)}: #{inspect(reason)}"
+          )
+      end
+
+      %{state | changes_since_snapshot: 0}
+    end
+  rescue
+    exception ->
+      Logger.warning(
+        "Unexpected error enqueuing snapshot job for #{inspect(doc_id)}: #{Exception.message(exception)}"
+      )
+
+      state
+  end
+
   defp persist_contents(nil, _contents), do: :ok
 
   defp persist_contents(doc_id, contents) do
@@ -299,7 +350,17 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
 
   defp persist_html(_doc_id, nil), do: :ok
 
-  defp persist_html(doc_id, html) when is_binary(html) do
+  defp persist_html(doc_id, html) when is_binary(html) and html != "" do
     Session.update_content(doc_id, html)
+    :ok
+  end
+
+  defp persist_html(_doc_id, _), do: :ok
+
+  defp oban_disabled? do
+    oban_config = Application.get_env(:live_svelte_pheonix, Oban, [])
+
+    Keyword.get(oban_config, :queues) == false or
+      Keyword.get(oban_config, :testing) == :manual
   end
 end

@@ -74,6 +74,24 @@ defmodule LiveSveltePheonixWeb.Telemetry do
           "The time the connection spent waiting before being checked out for the query"
       ),
 
+      # Oban Metrics
+      summary("oban.job.stop.duration",
+        event_name: [:oban, :job, :stop],
+        measurement: :duration,
+        tags: [:queue, :worker],
+        unit: {:native, :millisecond}
+      ),
+      summary("oban.job.stop.queue_time",
+        event_name: [:oban, :job, :stop],
+        measurement: :queue_time,
+        tags: [:queue],
+        unit: {:native, :millisecond}
+      ),
+      counter("oban.job.exception.count",
+        event_name: [:oban, :job, :exception],
+        tags: [:queue, :worker]
+      ),
+
       # VM Metrics
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
       summary("vm.total_run_queue_lengths.total"),

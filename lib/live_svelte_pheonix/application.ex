@@ -11,6 +11,7 @@ defmodule LiveSveltePheonix.Application do
       {NodeJS.Supervisor, [path: LiveSvelte.SSR.NodeJS.server_path(), pool_size: 4]},
       LiveSveltePheonixWeb.Telemetry,
       LiveSveltePheonix.Repo,
+      {Oban, Application.fetch_env!(:live_svelte_pheonix, Oban)},
       {DNSCluster,
        query: Application.get_env(:live_svelte_pheonix, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: LiveSveltePheonix.PubSub},
