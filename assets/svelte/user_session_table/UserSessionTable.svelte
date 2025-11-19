@@ -216,49 +216,26 @@
                   {session.session_id}
                 </a>
   
-                {#if session.shared_users && session.shared_users.length > 0}
-                  <div class="space-y-2">
-                    {#if session.shared_users.length <= 3}
-                      <div class="flex flex-wrap gap-2">
-                        {#each session.shared_users as email}
-                          <div class="flex items-center gap-2 bg-base-200 rounded-full pl-1 pr-3 py-1">
-                            <div class="avatar placeholder">
-                              <div class="bg-primary text-primary-content rounded-full w-6 h-6 text-xs">
-                                <span>{getInitials(email)}</span>
-                              </div>
+                                {#if session.shared_users && session.shared_users.length > 0}
+                  <div class="mt-2">
+                    <div class="flex items-center gap-2">
+                      <div class="avatar-group -space-x-3">
+                        {#each session.shared_users.slice(0, 4) as email}
+                          <div class="avatar placeholder">
+                            <div class="bg-primary text-primary-content rounded-full w-8 h-8 text-xs ring ring-base-100" title={email}>
+                              <span>{getInitials(email)}</span>
                             </div>
-                            <span class="text-xs truncate max-w-[120px]" title={email}>
-                              {getDisplayName(email)}
-                            </span>
                           </div>
                         {/each}
-                      </div>
-                    {:else}
-                      <div class="flex items-center gap-2">
-                        <div class="avatar-group -space-x-3">
-                          {#each session.shared_users.slice(0, 3) as email}
-                            <div class="avatar placeholder">
-                              <div class="bg-primary text-primary-content rounded-full w-8 h-8 text-xs" title={email}>
-                                <span>{getInitials(email)}</span>
-                              </div>
+                        {#if session.shared_users.length > 4}
+                          <div class="avatar placeholder">
+                            <div class="bg-base-300 text-base-content rounded-full w-8 h-8 text-xs ring ring-base-100" title="{session.shared_users.length - 4} more users">
+                              <span>+{session.shared_users.length - 4}</span>
                             </div>
-                          {/each}
-                        </div>
-                        {#if session.shared_users.length > 3}
-                          <span class="text-xs text-base-content/60 font-semibold">
-                            +{session.shared_users.length - 3}
-                          </span>
+                          </div>
                         {/if}
                       </div>
-  
-                      <div class="text-xs text-base-content/60 space-y-0.5 mt-2">
-                        {#each session.shared_users as email}
-                          <div class="truncate" title={email}>
-                            • {getDisplayName(email)}
-                          </div>
-                        {/each}
-                      </div>
-                    {/if}
+                    </div>
                   </div>
                 {/if}
   
