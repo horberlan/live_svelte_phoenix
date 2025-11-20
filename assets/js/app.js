@@ -26,6 +26,49 @@ import * as Components from "../svelte/**/*.svelte"
 
 let Hooks = getHooks(Components)
 
+Hooks.TrackClientCursor = {
+  mounted() {
+    console.log('TrackClientCursor hook mounted');
+    
+    let lastUpdate = 0;
+    const THROTTLE_MS = 50;
+    
+    this.handleMouseMove = (e) => {
+      const now = Date.now();
+      
+      if (now - lastUpdate < THROTTLE_MS) return;
+      lastUpdate = now;
+      
+      const rect = this.el.getBoundingClientRect();
+      
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      const clampedX = Math.max(0, Math.min(mouseX, rect.width));
+      const clampedY = Math.max(0, Math.min(mouseY, rect.height));
+      
+      const mouse_x = (clampedX / rect.width) * 100;
+      const mouse_y = (clampedY / rect.height) * 100;
+      
+      console.log('Cursor position:', { mouse_x, mouse_y });
+      
+      this.pushEvent('cursor-move', { 
+        mouse_x: mouse_x.toFixed(2), 
+        mouse_y: mouse_y.toFixed(2) 
+      });
+    };
+    
+    this.el.addEventListener('mousemove', this.handleMouseMove);
+  },
+  
+  destroyed() {
+    console.log('TrackClientCursor hook destroyed');
+    if (this.handleMouseMove) {
+      this.el.removeEventListener('mousemove', this.handleMouseMove);
+    }
+  }
+};
+
 Hooks.ThemeManager = {
   mounted() {
     this.updateTheme();
