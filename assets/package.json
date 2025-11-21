@@ -17,10 +17,13 @@
     "@tiptap/extension-placeholder": "^2.27.0",
     "@tiptap/pm": "^2.27.0",
     "@tiptap/starter-kit": "^2.27.0",
+    "clsx": "^2.1.1",
     "live_svelte": "file:../deps/live_svelte",
     "phoenix": "file:../deps/phoenix",
     "phoenix_html": "file:../deps/phoenix_html",
     "phoenix_live_view": "file:../deps/phoenix_live_view",
+    "svelte-motion": "^0.12.2",
+    "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.16"
   }
 }

@@ -2,6 +2,8 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
+@import "fonts.css";
+
 [type="radio"]:checked {
     background-image: none;
 }

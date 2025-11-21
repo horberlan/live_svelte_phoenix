@@ -7,9 +7,10 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   use LiveSvelte.Components
 
   alias LiveSveltePheonix.Accounts
-  alias LiveSveltePheonixWeb.Presence
   alias LiveSveltePheonix.Repo
   alias LiveSveltePheonix.Session
+  alias LiveSveltePheonixWeb.Presence
+  alias StringIO
 
   @default_editor_content "<h2>Start writing...</h2><p>Your content here</p>"
   @pubsub LiveSveltePheonix.PubSub
@@ -18,17 +19,10 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     ~H"""
     <main class="container p-2 rounded-md mx-auto bg-base-200 mb-4">
       <div class="flex flex-wrap justify-between">
-        <.svelte
-          name="status/Session"
-          socket={@socket}
-          docId={@session_id}
-          userId={@user_id}
-          userName={@user_name}
-        />
+        <.svelte name="status/Session" socket={@socket} />
         <.svelte name="invite/InviteUser" socket={@socket} />
       </div>
       <div id={"session-wrapper-#{@session_id}"} class="relative" phx-hook="TrackClientCursor">
-        <h1 class="text-center text-base-200">Session: {@session_id}</h1>
         <.Editor
           socket={@socket}
           content={@content}
@@ -43,7 +37,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
             <div
               id={"cursor-#{user.socket_id}"}
               style={"position: absolute; left: #{user.x}%; top: #{user.y}%; transform: translate(-2px, -2px); transition: left 0.1s ease-out, top 0.1s ease-out;"}
-              class="pointer-events-none z-50"
+              class="pointer-events-none z-10"
             >
               <svg class="size-4" fill="none" viewBox="0 0 31 32">
                 <path
@@ -64,9 +58,14 @@ defmodule LiveSveltePheonixWeb.SessionLive do
                   </linearGradient>
                 </defs>
               </svg>
-              <span class="ml-4 -mt-1 px-2 py-1 text-xs text-primary-content rounded-lg bg-primary shadow-md whitespace-nowrap font-light">
-                <%= user.username %>
-              </span>
+              <div class="mt-1.4 ml-2">
+                <div class="bg-primary text-primary-content rounded-lg size-4 flex items-center justify-center">
+                  <span class="text-xs">
+                    {String.capitalize(String.first(user.username))}
+                    <!-- String.slice(user.username, 1..-1//1) -->
+                  </span>
+                </div>
+              </div>
             </div>
           <% end %>
         <% end %>
@@ -150,7 +149,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     {:noreply, push_event(socket, "remote_content_updated", %{content: content})}
   end
 
-  def handle_info(%{event: "presence_diff", payload: %{joins: joins, leaves: leaves}}, socket) do
+  def handle_info(%{event: "presence_diff", payload: %{joins: _joins, leaves: leaves}}, socket) do
     users = list_present_users(socket.assigns.session_id)
     {:noreply, assign(socket, :users, users)}
   end
@@ -180,7 +179,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
 
   defp get_current_user(session_data) do
     with user_token when not is_nil(user_token) <- session_data["user_token"],
-         user when not is_nil(user) <- Accounts.get_user_by_session_token(user_token) do
+        user when not is_nil(user) <- Accounts.get_user_by_session_token(user_token) do
       user
     else
       _ -> nil

@@ -29,7 +29,7 @@
   }
 </script>
 
-<form class="flex flex-wrap gap-4" on:submit={handleSubmit}>
+<form class="flex flex-wrap gap-2" on:submit={handleSubmit}>
   <input
     type="email"
     class="input input-bordered input-xs"
