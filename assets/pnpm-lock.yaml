@@ -20,9 +20,15 @@ importers:
       '@tiptap/extension-floating-menu':
         specifier: ^2.27.0
         version: 2.27.0(@tiptap/core@2.27.0(@tiptap/pm@2.27.0))(@tiptap/pm@2.27.0)
+      '@tiptap/extension-font-family':
+        specifier: ^3.11.0
+        version: 3.11.0(@tiptap/extension-text-style@3.11.0(@tiptap/core@2.27.0(@tiptap/pm@2.27.0)))
       '@tiptap/extension-placeholder':
         specifier: ^2.27.0
         version: 2.27.0(@tiptap/core@2.27.0(@tiptap/pm@2.27.0))(@tiptap/pm@2.27.0)
+      '@tiptap/extension-text-style':
+        specifier: ^3.11.0
+        version: 3.11.0(@tiptap/core@2.27.0(@tiptap/pm@2.27.0))
       '@tiptap/pm':
         specifier: ^2.27.0
         version: 2.27.0
@@ -325,6 +331,11 @@ packages:
       '@tiptap/core': ^2.7.0
       '@tiptap/pm': ^2.7.0
 
+  '@tiptap/extension-font-family@3.11.0':
+    resolution: {integrity: sha512-hrocQWL47szDj1Cd9YX0Hrl2yHuYQoOwZQPAu1QAUib+tcT9ffQdnr/7ODVyOYp091aprw8Zxhiw6qAJ9pHThw==}
+    peerDependencies:
+      '@tiptap/extension-text-style': ^3.11.0
+
   '@tiptap/extension-gapcursor@2.27.0':
     resolution: {integrity: sha512-fQmdYN9DIZc0N76ocA2BPFN9pJYKb/0k8ywwW2z4xlLJPN9S9bQx7FIS02lz+jEbTlNtrb60EM9jcq041oF1jg==}
     peerDependencies:
@@ -388,6 +399,11 @@ packages:
     resolution: {integrity: sha512-7EKxtJxvSVLXTR9KosvwRHxBj8Xa2M9/I1rV6yt89RGY40qcxhBNhlKJGYMr0RtZxAyec4sGvehlcuYrt6iCXA==}
     peerDependencies:
       '@tiptap/core': ^2.7.0
+
+  '@tiptap/extension-text-style@3.11.0':
+    resolution: {integrity: sha512-q8RM4gzmdnUHosL65SIJzTTmL29bm+3hNPdloOuJyLd4sTYs2q+cues5mH5/n85HqX3+TvKrfrTVb1Yj62E1NA==}
+    peerDependencies:
+      '@tiptap/core': ^3.11.0
 
   '@tiptap/extension-text@2.27.0':
     resolution: {integrity: sha512-bks93tyv7gta7Z/q2OuMk5m9r7rBeef/3Y/hoUolMezIKQ3BHWLOEGkLVej2noNIx5n9LRJzXec1nvp0XeCJ5g==}
@@ -947,6 +963,10 @@ snapshots:
       '@tiptap/pm': 2.27.0
       tippy.js: 6.3.7
 
+  '@tiptap/extension-font-family@3.11.0(@tiptap/extension-text-style@3.11.0(@tiptap/core@2.27.0(@tiptap/pm@2.27.0)))':
+    dependencies:
+      '@tiptap/extension-text-style': 3.11.0(@tiptap/core@2.27.0(@tiptap/pm@2.27.0))
+
   '@tiptap/extension-gapcursor@2.27.0(@tiptap/core@2.27.0(@tiptap/pm@2.27.0))(@tiptap/pm@2.27.0)':
     dependencies:
       '@tiptap/core': 2.27.0(@tiptap/pm@2.27.0)
@@ -996,6 +1016,10 @@ snapshots:
       '@tiptap/core': 2.27.0(@tiptap/pm@2.27.0)
 
   '@tiptap/extension-text-style@2.27.0(@tiptap/core@2.27.0(@tiptap/pm@2.27.0))':
+    dependencies:
+      '@tiptap/core': 2.27.0(@tiptap/pm@2.27.0)
+
+  '@tiptap/extension-text-style@3.11.0(@tiptap/core@2.27.0(@tiptap/pm@2.27.0))':
     dependencies:
       '@tiptap/core': 2.27.0(@tiptap/pm@2.27.0)
 

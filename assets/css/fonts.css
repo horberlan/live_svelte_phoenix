@@ -3,28 +3,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Pacifico&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Jua&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Grand+Hotel&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Emilys+Candy&display=swap');
 
 .cherry-bomb-one-regular {
     font-family: "Cherry Bomb One", system-ui;
-    font-style: normal;
 }
 
 .borel-regular {
     font-family: "Borel", cursive;
-    font-style: normal;
 }
 
 .pacifico-regular {
     font-family: "Pacifico", cursive;
-    font-style: normal;
 }
 
 .jua-regular {
     font-family: "Jua", sans-serif;
-    font-style: normal;
 }
 
 .grand-hotel-regular {
     font-family: "Grand Hotel", cursive;
-    font-style: normal;
+}
+
+.emilys-candy-regular {
+    font-family: "Emilys Candy", serif;
 }
