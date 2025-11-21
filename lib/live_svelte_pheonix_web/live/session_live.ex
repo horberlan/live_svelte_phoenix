@@ -37,7 +37,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
             <div
               id={"cursor-#{user.socket_id}"}
               style={"position: absolute; left: #{user.x}%; top: #{user.y}%; transform: translate(-2px, -2px); transition: left 0.1s ease-out, top 0.1s ease-out;"}
-              class="pointer-events-none z-10"
+              class="pointer-events-none z-10 opacity-[0.8]"
             >
               <svg class="size-4" fill="none" viewBox="0 0 31 32">
                 <path

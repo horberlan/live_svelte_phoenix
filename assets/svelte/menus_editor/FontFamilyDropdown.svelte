@@ -1,11 +1,13 @@
 <script>
-  import { Motion, useAnimation } from 'svelte-motion'
+  import { Motion } from 'svelte-motion'
   import { clsx } from 'clsx'
   import { twMerge } from 'tailwind-merge'
 
   function cn(...inputs) {
     return twMerge(clsx(inputs))
   }
+
+  export let editor = null
 
   let fonts = {
     'cherry-bomb-one-regular': {
@@ -22,6 +24,9 @@
     },
     'grand-hotel-regular': {
       name: 'grand hotel',
+    },
+    'emilys-candy-regular': {
+      name: 'Emilys Candy',
     },
   }
 
@@ -67,6 +72,10 @@
 
   function selectFont(fontCss) {
     selectedFont = fonts[fontCss]
+
+    if (editor) {
+      editor.commands.setFontFamily(selectedFont.name)
+    }
   }
 
   function handleMouseEnter() {
@@ -115,7 +124,6 @@
         <path d="M6 9l6 6 6-6" />
       </svg>
     </button>
-
     <Motion
       animate={isOpen ? 'visible' : 'hidden'}
       variants={list}
