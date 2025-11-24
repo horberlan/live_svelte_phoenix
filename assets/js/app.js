@@ -22,14 +22,13 @@ import { Socket } from "phoenix"
 import { LiveSocket } from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 import { getHooks } from "live_svelte"
+
 import * as Components from "../svelte/**/*.svelte"
 
 let Hooks = getHooks(Components)
 
 Hooks.TrackClientCursor = {
   mounted() {
-    console.log('TrackClientCursor hook mounted');
-    
     let lastUpdate = 0;
     const THROTTLE_MS = 50;
     
@@ -50,8 +49,6 @@ Hooks.TrackClientCursor = {
       const mouse_x = (clampedX / rect.width) * 100;
       const mouse_y = (clampedY / rect.height) * 100;
       
-      console.log('Cursor position:', { mouse_x, mouse_y });
-      
       this.pushEvent('cursor-move', { 
         mouse_x: mouse_x.toFixed(2), 
         mouse_y: mouse_y.toFixed(2) 
@@ -62,7 +59,6 @@ Hooks.TrackClientCursor = {
   },
   
   destroyed() {
-    console.log('TrackClientCursor hook destroyed');
     if (this.handleMouseMove) {
       this.el.removeEventListener('mousemove', this.handleMouseMove);
     }

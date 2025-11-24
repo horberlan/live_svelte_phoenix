@@ -63,6 +63,7 @@ defmodule LiveSveltePheonix.MixProject do
       {:uuid, "~> 1.1"},
       {:timex, "~> 3.0"},
       {:delta, "~> 0.4.1"},
+      {:y_ex, "~> 0.6.0"},
       {:oban, "~> 2.17"}
     ]
   end

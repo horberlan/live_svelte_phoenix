@@ -2,8 +2,12 @@
   import { Motion } from 'svelte-motion'
   import { onMount } from 'svelte'
 
+  import { createEventDispatcher } from 'svelte'
+  
   export let editor = null
   export let onBackgroundSelected = null
+  
+  const dispatch = createEventDispatcher()
 
   let selectedColor = null
   let isOpen = false
@@ -71,10 +75,15 @@
       return yiq >= 128 ? '#000000' : '#FFFFFF'
     }
 
+    // Dispatch event for parent components
+    dispatch('backgroundSelected', { value: colorValue })
+    
+    // Also call callback if provided (backward compatibility)
     if (onBackgroundSelected) {
       onBackgroundSelected({ color: colorKey, value: colorValue })
     }
 
+    console.log('[BackgroundSelector] Color selected:', colorKey, colorValue)
     isOpen = false
   }
 

@@ -2,7 +2,7 @@ defmodule LiveSveltePheonixWeb.UserSocket do
   use Phoenix.Socket
 
   # Channels
-  channel "document:*", LiveSveltePheonixWeb.DocumentChannel
+  channel "yjs:*", LiveSveltePheonixWeb.YjsChannel
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) do

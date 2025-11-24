@@ -1,39 +1,21 @@
 defmodule LiveSveltePheonix.CollaborativeDocument do
   @moduledoc """
-  GenServer to manage collaborative documents in real-time using Delta OT.
-  Supports multiple collaborators with automatic conflict resolution.
+  GenServer to manage collaborative documents in real-time using Yjs (y_ex).
   """
   use GenServer
-
   require Logger
 
-  alias Oban
-  alias LiveSveltePheonix.Repo
   alias LiveSveltePheonix.Session
-  alias LiveSveltePheonix.Workers.DocumentSnapshotWorker
-
-  @snapshot_delta_threshold 50
 
   @initial_state %{
-    # Document identifier
     doc_id: nil,
-    # Number of changes made to the document
-    version: 0,
-    # Quill-style Delta document content
-    contents: [],
-    # Inverted versions of all changes (for undo/history)
-    inverted_changes: [],
-    # Normal changes (for redo/history)
-    changes: [],
-    # Connected collaborators {user_id => %{name, cursor_position}}
-    collaborators: %{},
-    # Timestamp of last update
-    last_updated: nil,
-    # Cached HTML snapshot
-    html: nil,
-    # Changes since the last background snapshot
-    changes_since_snapshot: 0
+    ydoc: nil,
+    awareness: nil,
+    subscribers: %{},
+    last_updated: nil
   }
+
+  # == Client API ==
 
   def start_link(opts) do
     doc_id = Keyword.fetch!(opts, :doc_id)
@@ -44,350 +26,162 @@ defmodule LiveSveltePheonix.CollaborativeDocument do
     GenServer.stop(via_tuple(doc_id))
   end
 
-  @doc """
-  Applies a change to the document and returns the new state.
-  Accepts the client version to detect conflicts.
-  """
-  def update(doc_id, change, client_version, user_id, html_snapshot \\ nil) do
-    GenServer.call(via_tuple(doc_id), {:update, change, client_version, user_id, html_snapshot})
+  def subscribe(doc_id, pid) do
+    GenServer.cast(via_tuple(doc_id), {:subscribe, pid})
   end
 
-  @doc """
-  Returns the current document content
-  """
-  def get_contents(doc_id) do
-    GenServer.call(via_tuple(doc_id), :get_contents)
+  def unsubscribe(doc_id, pid) do
+    GenServer.cast(via_tuple(doc_id), {:unsubscribe, pid})
   end
 
-  @doc """
-  Returns the complete document state including version and collaborators
-  """
-  def get_state(doc_id) do
-    GenServer.call(via_tuple(doc_id), :get_state)
+  def get_all(doc_id) do
+    GenServer.call(via_tuple(doc_id), :get_all)
   end
 
-  @doc """
-  Returns the document history
-  """
-  def get_history(doc_id) do
-    GenServer.call(via_tuple(doc_id), :get_history)
+  def handle_update(doc_id, from, update) do
+    GenServer.cast(via_tuple(doc_id), {:handle_update, from, update})
   end
 
-  @doc """
-  Undoes the last change
-  """
-  def undo(doc_id) do
-    GenServer.call(via_tuple(doc_id), :undo)
+  def handle_awareness_update(doc_id, from, update) do
+    GenServer.cast(via_tuple(doc_id), {:handle_awareness_update, from, update})
   end
 
-  @doc """
-  Redoes the last undone change
-  """
-  def redo(doc_id) do
-    GenServer.call(via_tuple(doc_id), :redo)
-  end
-
-  @doc """
-  Adds a collaborator to the document
-  """
-  def add_collaborator(doc_id, user_id, user_info) do
-    GenServer.cast(via_tuple(doc_id), {:add_collaborator, user_id, user_info})
-  end
-
-  @doc """
-  Removes a collaborator from the document
-  """
-  def remove_collaborator(doc_id, user_id) do
-    GenServer.cast(via_tuple(doc_id), {:remove_collaborator, user_id})
-  end
-
-  @doc """
-  Updates a collaborator's cursor position
-  """
-  def update_cursor(doc_id, user_id, cursor_position) do
-    GenServer.cast(via_tuple(doc_id), {:update_cursor, user_id, cursor_position})
-  end
+  # == GenServer Callbacks ==
 
   @impl true
   def init(opts) do
     doc_id = Keyword.fetch!(opts, :doc_id)
 
-    loaded_content = load_content_from_db(doc_id)
-    loaded_html = load_html_from_db(doc_id)
+    # Initialize Yjs document
+    ydoc = Yex.Doc.new()
+
+    # Load persisted state if available
+    ydoc_binary = Session.get_ydoc(doc_id)
+    if ydoc_binary do
+      Logger.info("Loading persisted state for #{doc_id}, size: #{byte_size(ydoc_binary)}")
+      case Yex.apply_update(ydoc, ydoc_binary) do
+        :ok ->
+          Logger.info("Successfully loaded persisted state for #{doc_id}")
+          :ok
+        {:error, reason} ->
+          Logger.warning("Failed to load persisted state: #{inspect(reason)}")
+      end
+    else
+      Logger.info("No persisted state found for #{doc_id}")
+    end
+
+    # Initialize awareness
+    {:ok, awareness} = Yex.Awareness.new(ydoc)
 
     state = %{
       @initial_state
       | doc_id: doc_id,
-        contents: loaded_content,
-        html: loaded_html,
+        ydoc: ydoc,
+        awareness: awareness,
         last_updated: DateTime.utc_now()
     }
 
+    Logger.info("CollaborativeDocument #{doc_id} started.")
     {:ok, state}
   end
 
   @impl true
-  def handle_call({:update, change, client_version, user_id, html_snapshot}, _from, state) do
-    IO.inspect({:incoming_change_to_document, change}, label: "CollaborativeDocument")
+  def handle_cast({:subscribe, pid}, state) do
+    subscribers = Map.put(state.subscribers, pid, :ok)
+    {:noreply, %{state | subscribers: subscribers}}
+  end
 
-    # Validate and normalize the incoming change
-    normalized_change = normalize_delta(change)
+  @impl true
+  def handle_cast({:unsubscribe, pid}, state) do
+    subscribers = Map.delete(state.subscribers, pid)
+    {:noreply, %{state | subscribers: subscribers}}
+  end
 
-    # Reject empty or invalid deltas
-    if empty_delta?(normalized_change) do
-      Logger.warning("Received empty or invalid delta from user #{user_id}")
-      {:reply, {:error, :invalid_delta}, state}
-    else
-      transformed_change =
-        if client_version < state.version do
-          changes_since =
-            Enum.take(state.changes, state.version - client_version)
-            |> Enum.reverse()
+  @impl true
+  def handle_cast({:handle_update, from, update}, state) do
+    IO.puts("[CollaborativeDocument] Received update from #{inspect(from)}, size: #{byte_size(update)}")
+    IO.puts("[CollaborativeDocument] Current subscribers: #{map_size(state.subscribers)}")
 
-          Enum.reduce(changes_since, normalized_change, fn server_change, client_change ->
-            Delta.transform(client_change, server_change, false)
-          end)
-        else
-          normalized_change
-        end
+    case Yex.apply_update(state.ydoc, update) do
+      :ok ->
+        IO.puts("[CollaborativeDocument] Update applied successfully")
 
-      IO.inspect({:transformed_change_in_document, transformed_change}, label: "CollaborativeDocument")
+        # Persist the document state
+        {:ok, encoded_state} = Yex.encode_state_as_update(state.ydoc)
+        IO.puts("[CollaborativeDocument] Persisting state, size: #{byte_size(encoded_state)}")
+        Session.update_ydoc(state.doc_id, encoded_state)
+        IO.puts("[CollaborativeDocument] State persisted successfully")
 
-      # Validate that transformed change is still valid
-      if empty_delta?(transformed_change) do
-        Logger.warning("Transformed delta is empty for user #{user_id}")
-        {:reply, {:error, :invalid_transformed_delta}, state}
-      else
-        inverted = Delta.invert(transformed_change, state.contents)
-        composed_contents = Delta.compose(state.contents, transformed_change)
+        # Broadcast to other subscribers
+        IO.puts("[CollaborativeDocument] Broadcasting to #{map_size(state.subscribers)} subscribers")
+        broadcast(state.subscribers, from, "yjs_update", %{
+          doc_id: state.doc_id,
+          payload: Base.encode64(update)
+        })
 
-        # Validate composed contents - ensure it's a valid list
-        normalized_contents = normalize_delta(composed_contents)
+        {:noreply, %{state | last_updated: DateTime.utc_now()}}
 
-        # Only update HTML if a new snapshot is provided
-        # Don't keep old HTML as it may be out of sync with delta
-        new_html = if is_binary(html_snapshot) and html_snapshot != "", do: html_snapshot, else: nil
-
-        new_state =
-          %{
-          state
-          | version: state.version + 1,
-            contents: normalized_contents,
-            inverted_changes: [inverted | state.inverted_changes],
-            changes: [transformed_change | Enum.take(state.changes, 99)],
-            last_updated: DateTime.utc_now(),
-            html: new_html,
-            changes_since_snapshot: state.changes_since_snapshot + 1
-          }
-          |> maybe_enqueue_snapshot()
-
-        persist_contents(new_state.doc_id, normalized_contents)
-        # Only persist HTML if we have a fresh snapshot
-        # This ensures HTML is always in sync with delta
-        persist_html(new_state.doc_id, new_html)
-
-        result = %{
-          version: new_state.version,
-          change: transformed_change, # Broadcast the transformed change
-          user_id: user_id,
-          contents: normalized_contents,
-          html: new_html
-        }
-
-        {:reply, {:ok, result}, new_state}
-      end
+      {:error, reason} ->
+        Logger.error("Failed to apply update: #{inspect(reason)}")
+        {:noreply, state}
     end
   end
 
   @impl true
-  def handle_call(:get_contents, _from, state) do
-    {:reply, state.contents, state}
+  def handle_cast({:handle_awareness_update, from, update}, state) do
+    :ok = Yex.Awareness.apply_update(state.awareness, update)
+
+    # Broadcast to other subscribers
+    broadcast(state.subscribers, from, "awareness_update", %{
+      doc_id: state.doc_id,
+      payload: Base.encode64(update)
+    })
+
+    {:noreply, state}
   end
 
   @impl true
-  def handle_call(:get_state, _from, state) do
-    result = %{
-      version: state.version,
-      contents: state.contents,
-      collaborators: state.collaborators,
-      last_updated: state.last_updated,
-      html: state.html
+  def handle_call(:get_all, _from, state) do
+    {:ok, doc_state} = Yex.encode_state_as_update(state.ydoc)
+    {:ok, awareness_state} = Yex.Awareness.encode_update(state.awareness)
+
+    Logger.info("[CollaborativeDocument] get_all called for #{state.doc_id}")
+    Logger.info("[CollaborativeDocument] doc_state size: #{byte_size(doc_state)}")
+    Logger.info("[CollaborativeDocument] awareness_state size: #{byte_size(awareness_state)}")
+
+    reply = %{
+      doc: Base.encode64(doc_state),
+      awareness: Base.encode64(awareness_state)
     }
 
-    {:reply, result, state}
+    {:reply, {:ok, reply}, state}
   end
 
-  @impl true
-  def handle_call(:get_history, _from, state) do
-    current = {state.version, state.contents}
-
-    history =
-      Enum.scan(state.inverted_changes, current, fn inverted, {version, contents} ->
-        contents = Delta.compose(contents, inverted)
-        {version - 1, contents}
-      end)
-
-    {:reply, [current | history], state}
-  end
-
-  @impl true
-  def handle_call(:undo, _from, %{version: 0} = state) do
-    {:reply, {:error, :nothing_to_undo}, state}
-  end
-
-  @impl true
-  def handle_call(:undo, _from, state) do
-    [last_change | remaining_inverted] = state.inverted_changes
-    [_last_normal | remaining_changes] = state.changes
-
-    new_contents = Delta.compose(state.contents, last_change)
-
-    new_state = %{
-      state
-      | version: state.version - 1,
-        contents: new_contents,
-        inverted_changes: remaining_inverted,
-        changes: remaining_changes,
-        last_updated: DateTime.utc_now()
-    }
-
-    {:reply, {:ok, new_contents}, new_state}
-  end
-
-  @impl true
-  def handle_call(:redo, _from, state) do
-    # Simplified implementation - can be expanded
-    {:reply, {:error, :not_implemented}, state}
-  end
-
-  @impl true
-  def handle_cast({:add_collaborator, user_id, user_info}, state) do
-    collaborators = Map.put(state.collaborators, user_id, user_info)
-    {:noreply, %{state | collaborators: collaborators}}
-  end
-
-  @impl true
-  def handle_cast({:remove_collaborator, user_id}, state) do
-    collaborators = Map.delete(state.collaborators, user_id)
-    {:noreply, %{state | collaborators: collaborators}}
-  end
-
-  @impl true
-  def handle_cast({:update_cursor, user_id, cursor_position}, state) do
-    collaborators =
-      Map.update(state.collaborators, user_id, %{cursor_position: cursor_position}, fn info ->
-        Map.put(info, :cursor_position, cursor_position)
-      end)
-
-    {:noreply, %{state | collaborators: collaborators}}
-  end
+  # == Private Helpers ==
 
   defp via_tuple(doc_id) do
     {:via, Registry, {LiveSveltePheonix.DocumentRegistry, doc_id}}
   end
 
-  defp load_content_from_db(doc_id) do
-    case Repo.get_by(Session, session_id: doc_id) do
-      nil ->
-        []
+  defp broadcast(subscribers, from, event, payload) do
+    # Use Phoenix.PubSub for better reliability
+    Phoenix.PubSub.broadcast_from(
+      LiveSveltePheonix.PubSub,
+      from,
+      "document:#{payload.doc_id}",
+      {__MODULE__, event, payload}
+    )
 
-      %Session{} = session ->
-        case Session.get_delta_content(session) do
-          nil -> []
-          delta -> normalize_delta(delta)
-        end
-    end
-  end
-
-  defp load_html_from_db(doc_id) do
-    case Repo.get_by(Session, session_id: doc_id) do
-      nil -> nil
-      %Session{} = session -> Session.get_html_content(session)
-    end
-  end
-
-  defp maybe_enqueue_snapshot(%{doc_id: nil} = state), do: state
-
-  defp maybe_enqueue_snapshot(%{changes_since_snapshot: changes} = state)
-       when changes < @snapshot_delta_threshold,
-       do: state
-
-  defp maybe_enqueue_snapshot(%{doc_id: doc_id} = state) do
-    if oban_disabled?() do
-      %{state | changes_since_snapshot: 0}
-    else
-      job =
-        DocumentSnapshotWorker.new(%{
-          "doc_id" => doc_id,
-          "target_version" => state.version
-        })
-
-      case Oban.insert(job) do
-        {:ok, _job} ->
-          :ok
-
-        {:error, :conflict} ->
-          :ok
-
-        {:error, reason} ->
-          Logger.warning(
-            "Failed to enqueue snapshot job for #{inspect(doc_id)}: #{inspect(reason)}"
-          )
-      end
-
-      %{state | changes_since_snapshot: 0}
-    end
-  rescue
-    exception ->
-      Logger.warning(
-        "Unexpected error enqueuing snapshot job for #{inspect(doc_id)}: #{Exception.message(exception)}"
-      )
-
-      state
-  end
-
-  defp persist_contents(nil, _contents), do: :ok
-
-  defp persist_contents(doc_id, contents) do
-    # Persist asynchronously? For now we perform it inline so the latest
-    # state is durable before acknowledging the client.
-    Session.update_delta_content(doc_id, contents)
-  end
-
-  defp persist_html(_doc_id, nil), do: :ok
-
-  defp persist_html(doc_id, html) when is_binary(html) and html != "" do
-    Session.update_content(doc_id, html)
-    :ok
-  end
-
-  defp persist_html(_doc_id, _), do: :ok
-
-  defp oban_disabled? do
-    oban_config = Application.get_env(:live_svelte_pheonix, Oban, [])
-
-    Keyword.get(oban_config, :queues) == false or
-      Keyword.get(oban_config, :testing) == :manual
-  end
-
-  # Normalize delta to ensure it's a valid list format
-  defp normalize_delta(nil), do: []
-  defp normalize_delta([]), do: []
-  defp normalize_delta(delta) when is_list(delta), do: delta
-  defp normalize_delta(delta) when is_map(delta), do: [delta]
-  defp normalize_delta(_invalid), do: []
-
-  # Check if delta is empty (only retains or no meaningful operations)
-  defp empty_delta?(nil), do: true
-  defp empty_delta?([]), do: true
-  defp empty_delta?(delta) when is_list(delta) do
-    Enum.all?(delta, fn op ->
-      case op do
-        %{"retain" => _} -> true
-        %{retain: _} -> true
-        _ -> false
+    # Also send directly to subscribers as backup
+    subscribers
+    |> Map.keys()
+    |> Enum.each(fn pid ->
+      if pid != from do
+        IO.puts("[CollaborativeDocument] Sending #{event} to #{inspect(pid)}")
+        send(pid, {__MODULE__, event, payload})
+      else
+        IO.puts("[CollaborativeDocument] Skipping sender #{inspect(pid)}")
       end
     end)
   end
-  defp empty_delta?(_), do: false
 end

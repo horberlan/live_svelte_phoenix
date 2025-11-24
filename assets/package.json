@@ -13,6 +13,8 @@
     "@tailwindcss/typography": "^0.5.19",
     "@tiptap/core": "^2.27.0",
     "@tiptap/extension-bubble-menu": "^2.27.0",
+    "@tiptap/extension-collaboration": "^2.5.6",
+    "@tiptap/extension-collaboration-cursor": "^2.5.6",
     "@tiptap/extension-floating-menu": "^2.27.0",
     "@tiptap/extension-font-family": "^3.11.0",
     "@tiptap/extension-placeholder": "^2.27.0",
@@ -26,6 +28,8 @@
     "phoenix_live_view": "file:../deps/phoenix_live_view",
     "svelte-motion": "^0.12.2",
     "tailwind-merge": "^3.4.0",
-    "tailwindcss": "^4.1.16"
+    "tailwindcss": "^4.1.16",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.18"
   }
 }

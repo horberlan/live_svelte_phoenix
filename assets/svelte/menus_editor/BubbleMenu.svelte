@@ -6,10 +6,18 @@
   export let editor = null
   export let bubbleMenuItems = []
 
+  import { createEventDispatcher } from 'svelte'
+  
+  const dispatch = createEventDispatcher()
+  
   let selectedBackground = null
 
   function handleBackgroundSelected(event) {
+    console.log('[BubbleMenu] Received backgroundSelected event:', event.detail)
     selectedBackground = event.detail || event
+    // Forward the event to parent (Editor.svelte)
+    dispatch('backgroundSelected', event.detail || event)
+    console.log('[BubbleMenu] Forwarded to Editor')
   }
 </script>
 

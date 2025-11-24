@@ -8,6 +8,8 @@ defmodule LiveSveltePheonix.Session do
     field :session_id, :string
     field :content, :string
     field :shared_users, {:array, :string}
+    field :ydoc, :binary
+    field :background_color, :string
 
     # ADICIONADO: Campo para salvar a ordem
     field :position, :integer, default: 0
@@ -24,9 +26,59 @@ defmodule LiveSveltePheonix.Session do
       :content,
       :shared_users,
       :user_id,
-      :position
+      :position,
+      :ydoc,
+      :background_color
     ])
     |> validate_required([:session_id, :user_id])
+  end
+
+  def get_ydoc(session_id) do
+    case LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id) do
+      nil -> nil
+      %__MODULE__{} = session -> session.ydoc
+    end
+  end
+
+  def update_ydoc(session_id, ydoc_binary) do
+    with %__MODULE__{} = session <- LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id) do
+      session
+      |> changeset(%{ydoc: ydoc_binary})
+      |> LiveSveltePheonix.Repo.update()
+    end
+  end
+
+  def update_background_color(session_id, color) do
+    require Logger
+    Logger.info("[Session] Updating background color for #{session_id} to #{color}")
+
+    case LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id) do
+      nil ->
+        Logger.warning("[Session] Session not found: #{session_id}")
+        {:error, :not_found}
+
+      %__MODULE__{} = session ->
+        result = session
+        |> changeset(%{background_color: color})
+        |> LiveSveltePheonix.Repo.update()
+
+        case result do
+          {:ok, updated_session} ->
+            Logger.info("[Session] Background color updated successfully")
+            {:ok, updated_session}
+
+          {:error, changeset} ->
+            Logger.error("[Session] Failed to update: #{inspect(changeset.errors)}")
+            {:error, changeset}
+        end
+    end
+  end
+
+  def get_background_color(session_id) do
+    case LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id) do
+      nil -> nil
+      %__MODULE__{} = session -> session.background_color
+    end
   end
 
   def update_content(session_id, html_content) do
@@ -47,39 +99,13 @@ defmodule LiveSveltePheonix.Session do
     end
   end
 
-  def update_delta_content(session_id, delta_content) do
-    with %__MODULE__{} = session <- LiveSveltePheonix.Repo.get_by(__MODULE__, session_id: session_id) do
-      content_map =
-        session.content
-        |> normalize_content()
-        |> Map.put("delta", delta_content)
-
-      result =
-        session
-        |> changeset(%{content: Jason.encode!(content_map)})
-        |> LiveSveltePheonix.Repo.update()
-
-      # Invalidate cache after update
-      case result do
-        {:ok, _} -> Cache.invalidate_session(session_id)
-        _ -> :ok
-      end
-
-      result
-    end
-  end
-
-  def get_html_content(%__MODULE__{} = session, default \\ nil) do
+  def get_html_content(%__MODULE__{} = session, default \\ "") do
     session.content
     |> normalize_content()
     |> Map.get("html", default)
   end
 
-  def get_delta_content(%__MODULE__{} = session) do
-    session.content
-    |> normalize_content()
-    |> Map.get("delta")
-  end
+
 
   defp normalize_content(nil), do: %{}
   defp normalize_content(""), do: %{}

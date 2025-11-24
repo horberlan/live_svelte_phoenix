@@ -73,8 +73,11 @@
   function selectFont(fontCss) {
     selectedFont = fonts[fontCss]
 
-    if (editor) {
-      editor.commands.setFontFamily(selectedFont.name)
+    if (editor && !editor.isDestroyed) {
+      editor.chain().focus().setFontFamily(selectedFont.name).run()
+      console.log('Font changed to:', selectedFont.name)
+    } else {
+      console.warn('Editor not available or destroyed')
     }
   }
 
