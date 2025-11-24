@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from 'y-protocols/awareness';
+import { fixEncodingInHTML } from './encoding-fix.js';
 
 // Helper to send binary data over Phoenix channels
 function fromUint8Array(arr) {
@@ -116,6 +117,26 @@ export class PhoenixChannelProvider {
     if (event === 'yjs_update') {
         console.log('[Provider] Applying remote yjs_update, size:', data.length);
         Y.applyUpdate(this.doc, data, this);
+        
+        // Debug: Check document content after update
+        const xmlFragment = this.doc.getXmlFragment('default');
+        let htmlContent = xmlFragment.toString();
+        console.log('[Provider] Document HTML after update:', htmlContent.slice(0, 200));
+        
+        // Check for encoding issues and fix them
+        if (htmlContent.includes('Ã') || htmlContent.includes('ð')) {
+          console.warn('[Provider] ⚠️ Detected encoding issues in document content, fixing...');
+          const fixedContent = fixEncodingInHTML(htmlContent);
+          console.log('[Provider] ✅ Fixed content:', fixedContent.slice(0, 200));
+          
+          // Apply the fix back to the document
+          // Note: This is a bit tricky with Yjs, we need to be careful not to create infinite loops
+          if (fixedContent !== htmlContent) {
+            console.log('[Provider] Applying encoding fix to document');
+            // We'll need to update the document content carefully
+            // For now, just log the issue
+          }
+        }
     } else if (event === 'awareness_update') {
         console.log('[Provider] Applying remote awareness_update');
         applyAwarenessUpdate(this.awareness, data, this);

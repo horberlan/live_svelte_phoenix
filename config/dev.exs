@@ -9,6 +9,10 @@ config :live_svelte_pheonix, LiveSveltePheonix.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10,
   prepare: :unnamed,
+  # Garantir que a conexão usa UTF-8
+  parameters: [
+    client_encoding: "UTF8"
+  ],
   ssl:
     if(System.get_env("PGHOST", "localhost") == "localhost",
       do: false,

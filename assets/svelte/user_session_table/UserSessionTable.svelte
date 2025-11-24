@@ -4,6 +4,46 @@
   export let user_sessions = []
   export let live
   
+  /**
+   * Corrige double-encoding UTF-8
+   * Quando o LiveView/LiveSvelte serializa dados, UTF-8 pode ser interpretado como Latin-1
+   * Esta função reverte esse processo
+   */
+  function fixDoubleEncoding(text) {
+    if (!text || typeof text !== 'string') return text
+    
+    // Verificar se tem marcadores de double-encoding
+    if (!text.includes('Ã') && !text.includes('ð') && !text.includes('â')) {
+      return text
+    }
+    
+    try {
+      // Method 1: Use TextEncoder/TextDecoder
+      // Encode string as if it were Latin-1, then decode as UTF-8
+      const latin1Bytes = []
+      for (let i = 0; i < text.length; i++) {
+        latin1Bytes.push(text.charCodeAt(i) & 0xFF)
+      }
+      const utf8String = new TextDecoder('utf-8').decode(new Uint8Array(latin1Bytes))
+      
+      // Check if correction improved the string
+      if (!utf8String.includes('Ã') && !utf8String.includes('ð')) {
+        return utf8String
+      }
+      
+      return text
+    } catch (e) {
+      console.error('[fixDoubleEncoding] Erro:', e)
+      return text
+    }
+  }
+  
+  // Fix encoding of all sessions when received
+  $: corrected_sessions = user_sessions.map(session => ({
+    ...session,
+    title: fixDoubleEncoding(session.title)
+  }))
+  
   const i18n = {
     dragging: 'Dragging',
     shared: 'Shared',
@@ -45,9 +85,9 @@
       hoveredItemIndex != null &&
       draggingItemIndex != hoveredItemIndex
     ) {
-      [user_sessions[draggingItemIndex], user_sessions[hoveredItemIndex]] = [
-        user_sessions[hoveredItemIndex],
-        user_sessions[draggingItemIndex]
+      [corrected_sessions[draggingItemIndex], corrected_sessions[hoveredItemIndex]] = [
+        corrected_sessions[hoveredItemIndex],
+        corrected_sessions[draggingItemIndex]
       ]
       draggingItemIndex = hoveredItemIndex
     }
@@ -58,17 +98,10 @@
       dragPreview.style.display = 'block'
       dragPreview.style.top = `${mouseY + offsetTop}px`
       dragPreview.style.left = `${mouseX + offsetLeft}px`
-      dragPreview.innerHTML = `
-        <div class="card bg-base-100 shadow-2xl border-2 border-primary" style="width: 320px; transform: rotate(3deg) scale(1.05);">
-          <div class="card-body p-4 bg-gradient-to-br from-primary/10 to-secondary/10">
-            <div class="flex items-start justify-between gap-2 mb-2">
-              <div class="badge badge-primary badge-sm font-semibold">${i18n.dragging}</div>
-              ${draggingItem.shared_users && draggingItem.shared_users.length > 0 ? `<div class="badge badge-secondary badge-sm">${i18n.shared}</div>` : ''}
-            </div>
-            <h2 class="card-title text-base font-bold leading-tight line-clamp-2">${draggingItem.title || i18n.noTitle}</h2>
-          </div>
-        </div>
-      `
+      
+      // Clear previous content and append new safe content
+      dragPreview.innerHTML = ''
+      dragPreview.appendChild(createDragPreview(draggingItem))
     } else if (dragPreview) {
       dragPreview.style.display = 'none'
     }
@@ -84,10 +117,53 @@
     if (!email || typeof email !== 'string') return i18n.unknownUser
     return email.split('@')[0]
   }
+
+  function createDragPreview(draggingItem) {
+    // Create main card container
+    const cardDiv = document.createElement('div')
+    cardDiv.className = 'card bg-base-100 shadow-2xl border-2 border-primary'
+    cardDiv.style.width = '320px'
+    cardDiv.style.transform = 'rotate(3deg) scale(1.05)'
+
+    // Create card body
+    const cardBody = document.createElement('div')
+    cardBody.className = 'card-body p-4 bg-gradient-to-br from-primary/10 to-secondary/10'
+
+    // Create badges container
+    const badgesContainer = document.createElement('div')
+    badgesContainer.className = 'flex items-start justify-between gap-2 mb-2'
+
+    // Create dragging badge
+    const draggingBadge = document.createElement('div')
+    draggingBadge.className = 'badge badge-primary badge-sm font-semibold'
+    draggingBadge.textContent = i18n.dragging
+    badgesContainer.appendChild(draggingBadge)
+
+    // Create shared badge if needed
+    if (draggingItem.shared_users && draggingItem.shared_users.length > 0) {
+      const sharedBadge = document.createElement('div')
+      sharedBadge.className = 'badge badge-secondary badge-sm'
+      sharedBadge.textContent = i18n.shared
+      badgesContainer.appendChild(sharedBadge)
+    }
+
+    // Create title element
+    const titleElement = document.createElement('h2')
+    titleElement.className = 'card-title text-base font-bold leading-tight line-clamp-2'
+    // Use textContent to safely handle Unicode characters and prevent XSS
+    titleElement.textContent = draggingItem.title || i18n.noTitle
+
+    // Assemble the structure
+    cardBody.appendChild(badgesContainer)
+    cardBody.appendChild(titleElement)
+    cardDiv.appendChild(cardBody)
+
+    return cardDiv
+  }
   
   function updateSessionOrder() {
     if (live) {
-      const orderedSessionIds = user_sessions.map(s => s.session_id)
+      const orderedSessionIds = corrected_sessions.map(s => s.session_id)
       live.pushEvent("update_session_order", { session_ids: orderedSessionIds })
     }
   }
@@ -144,7 +220,7 @@
 </script>
   
   <div class="w-full p-4">
-    {#if !user_sessions || user_sessions.length === 0}
+    {#if !corrected_sessions || corrected_sessions.length === 0}
       <div class="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 gap-4">
         {#each [1, 2, 3, 4, 5, 6, 7, 8] as _}
           <div class="break-inside-avoid mb-4">
@@ -160,7 +236,7 @@
       </div>
     {:else}
       <div class="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 gap-4" role="list">
-        {#each user_sessions as session, index (session.session_id)}
+        {#each corrected_sessions as session, index (session.session_id)}
           <div 
             role="button"
             class="break-inside-avoid mb-4 transition-all duration-200"

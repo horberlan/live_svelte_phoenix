@@ -69,10 +69,13 @@ defmodule LiveSveltePheonixWeb.YjsChannel do
   end
 
   @impl true
-  def terminate(_reason, socket) do
+  def terminate(reason, socket) do
     doc_id = socket.assigns[:doc_id]
+    Logger.info("[YjsChannel] User disconnecting from doc: #{doc_id}, reason: #{inspect(reason)}")
+
     if doc_id do
       CollaborativeDocument.unsubscribe(doc_id, self())
+      Logger.info("[YjsChannel] User unsubscribed from doc: #{doc_id}")
     end
     :ok
   end

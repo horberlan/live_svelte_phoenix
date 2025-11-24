@@ -135,6 +135,14 @@ export class YjsChannelProvider {
   }
 
   disconnect() {
+    console.log('[YjsChannelProvider] Disconnecting...')
+    
+    // Limpar o awareness local antes de desconectar
+    if (this.awareness) {
+      console.log('[YjsChannelProvider] Clearing local awareness state')
+      this.awareness.setLocalState(null)
+    }
+    
     if (this.channel) {
       this.channel.leave();
     }
@@ -142,12 +150,23 @@ export class YjsChannelProvider {
       this.socket.disconnect();
     }
     this.connected = false;
+    this.synced = false;
     this.onStatus('disconnected');
   }
 
   destroy() {
+    console.log('[YjsChannelProvider] Destroying provider')
+    
+    // Remover listeners
     this.doc.off('update', this._onUpdate);
     this.awareness.off('update', this._onAwarenessUpdate);
+    
+    // Desconectar (isso vai limpar o awareness)
     this.disconnect();
+    
+    // Destruir o awareness
+    if (this.awareness) {
+      this.awareness.destroy();
+    }
   }
 }

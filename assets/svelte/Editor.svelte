@@ -1,5 +1,6 @@
 <script>
   import BubbleMenuComponent from './menus_editor/BubbleMenu.svelte'
+  import BackgroundSelector from './menus_editor/BackgroundSelector.svelte'
   import { onMount, onDestroy } from 'svelte'
   import { Editor } from '@tiptap/core'
   import BubbleMenu from '@tiptap/extension-bubble-menu'
@@ -25,8 +26,14 @@
   let bubbleMenu
   let ydoc
   let provider
+  let toolbarUpdate = 0 // Force toolbar update
 
   let editorBackgroundColor = backgroundColor
+  
+  // Function to update toolbar
+  function updateToolbar() {
+    toolbarUpdate++
+  }
 
   const intl = {
     placeholder: 'Start typing...',
@@ -68,13 +75,55 @@
     },
   ]
 
+  function getContrastTextColor(bg) {
+    if (!bg) return 'var(--bc)'
+
+    const div = document.createElement('div')
+    div.style.color = bg
+    document.body.appendChild(div)
+    const rgb = getComputedStyle(div).color
+    document.body.removeChild(div)
+
+    const match = rgb.match(/\d+/g)
+    if (!match) return 'black'
+    const [r, g, b] = match.map(Number)
+
+    // YIQ formula for contrast
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000
+    return yiq >= 128 ? '#000000' : '#FFFFFF'
+  }
+
+  function applyBackgroundColor(color) {
+    console.log('[Editor] Applying background color:', color)
+    console.log('[Editor] Editor exists:', !!editor)
+    console.log('[Editor] Editor.view exists:', !!editor?.view)
+    console.log('[Editor] Editor.view.dom exists:', !!editor?.view?.dom)
+    
+    editorBackgroundColor = color
+    if (editor && editor.view && editor.view.dom) {
+      // Always set the background color on the editor DOM
+      editor.view.dom.style.backgroundColor = color || ''
+      console.log('[Editor] Applied backgroundColor to editor.view.dom:', editor.view.dom.style.backgroundColor)
+      
+      // Apply contrast text color
+      if (color) {
+        const textColor = getContrastTextColor(color)
+        editor.view.dom.style.color = textColor
+        console.log('[Editor] Applied text color:', textColor)
+      } else {
+        // Reset to default text color
+        editor.view.dom.style.color = ''
+        console.log('[Editor] Reset text color to default')
+      }
+    } else {
+      console.warn('[Editor] Cannot apply color - editor not ready')
+    }
+  }
+
   function handleBackgroundSelected(event) {
     const { value } = event.detail || event
     console.log('[Editor] Background color selected:', value)
-    editorBackgroundColor = value
-    if (editor && editor.view && editor.view.dom) {
-      editor.view.dom.style.backgroundColor = editorBackgroundColor
-    }
+    applyBackgroundColor(value)
     
     // Save to server
     if (live && enableCollaboration) {
@@ -98,13 +147,27 @@
       }),
       TextStyle,
       FontFamily,
-      BubbleMenu.configure({
-        element: bubbleMenu,
-      }),
       Placeholder.configure({
         placeholder: intl.placeholder,
       }),
     ]
+    
+    if (bubbleMenu) {
+      extensions.push(
+        BubbleMenu.configure({
+          element: bubbleMenu,
+          tippyOptions: {
+            duration: 100,
+            placement: 'top',
+            maxWidth: 'none',
+            appendTo: () => document.body,
+            interactive: true,
+            zIndex: 1000,
+            offset: [0, 10],
+          },
+        })
+      )
+    }
 
     if (enableCollaboration && live) {
       console.log('Setting up collaboration with Phoenix Channels...')
@@ -127,7 +190,6 @@
         })
       )
       
-      // Add CollaborationCursor - it needs the provider, not just awareness
       try {
         if (provider && provider.awareness) {
           console.log('Adding CollaborationCursor extension')
@@ -156,20 +218,49 @@
       editorProps: {
         attributes: {
           class:
-            'prose max-w-none prose-sm sm:prose-base m-5 p-4 focus:outline-none shadow-md rounded-lg min-h-96',
+            'prose prose-lg max-w-none w-full mx-auto px-4 sm:px-6 md:px-8 py-6 focus:outline-none shadow-md rounded-lg min-h-[600px]',
         },
       },
-      // In collaborative mode, content comes from Yjs, not from the content prop
       content: enableCollaboration ? '' : content,
+      onCreate: ({ editor }) => {
+        console.log('[Editor] Editor created')
+        
+        editor.on('selectionUpdate', updateToolbar)
+        editor.on('transaction', updateToolbar)
+        
+        if (enableCollaboration) {
+          editor.on('update', ({ editor }) => {
+            const htmlContent = editor.getHTML()
+            if (htmlContent.includes('Ã') || htmlContent.includes('ð')) {
+              console.warn('[Editor] ⚠️ Detected encoding issues in editor content:', htmlContent.slice(0, 200))
+            }
+          })
+        }
+      },
     })
 
-    // Apply initial background color
-    if (editorBackgroundColor && editor.view && editor.view.dom) {
-      editor.view.dom.style.backgroundColor = editorBackgroundColor
+    if (editor.view && editor.view.dom) {
+      if (editorBackgroundColor) {
+        applyBackgroundColor(editorBackgroundColor)
+      } else {
+        const testDiv = document.createElement('div')
+        testDiv.className = 'bg-base-200'
+        testDiv.style.display = 'none'
+        document.body.appendChild(testDiv)
+        const defaultColor = getComputedStyle(testDiv).backgroundColor || '#F5F5F5'
+        document.body.removeChild(testDiv)
+        applyBackgroundColor(defaultColor)
+      }
+    }
+
+    if (live && enableCollaboration) {
+      live.handleEvent('background_color_updated', (data) => {
+        console.log('[Editor] Received background_color_updated:', data.color)
+        applyBackgroundColor(data.color)
+      })
     }
 
     if (!enableCollaboration) {
-      // Non-collaborative mode logic
       let updateTimeout
       editor.on('update', ({ editor }) => {
         clearTimeout(updateTimeout)
@@ -202,31 +293,75 @@
   })
 
   onDestroy(() => {
+    console.log('[Editor] Component destroying, cleaning up...')
+    
+    if (provider) {
+      provider.destroy()
+    }
     if (editor) {
       editor.destroy()
     }
-    if (provider) {
-      provider.destroy()
+  })
+  
+  onMount(() => {
+    const handleBeforeUnload = () => {
+      console.log('[Editor] Page unloading, cleaning up...')
+      if (provider) {
+        provider.destroy()
+      }
+    }
+    
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   })
 </script>
 
-<div class="relative mb-4">
-  <BubbleMenuComponent
-    {editor}
-    {bubbleMenuItems}
-    on:backgroundSelected={handleBackgroundSelected}
-  />
-  {#if bubbleMenuItems.length > 0}
-    <div
-      class="flex gap-2 bg-base-100 p-2 rounded-lg shadow-sm"
-      bind:this={bubbleMenu}
-    />
+<div class="relative mb-4 w-full max-w-7xl mx-auto">
+  {#if editor}
+    {#key toolbarUpdate}
+      <div class="toolbar-fixed mb-4 p-3 bg-base-100 rounded-lg shadow-md border border-base-300">
+        <div class="flex items-center gap-2 flex-wrap">
+          {#each bubbleMenuItems as item, index}
+            {@const activeArgs = item.active()}
+            {@const isActive = Array.isArray(activeArgs) ? editor.isActive(...activeArgs) : false}
+            <button
+              type="button"
+              on:click={() => {
+                item.command()
+                setTimeout(updateToolbar, 10)
+              }}
+              class="btn btn-sm {isActive ? 'btn-neutral' : 'btn-ghost'} transition-all duration-200"
+              title={item.label}
+            >
+              {@html item.label}
+            </button>
+          {/each}
+          <div class="divider divider-horizontal mx-1" />
+          <BackgroundSelector
+            {editor}
+            on:backgroundSelected={handleBackgroundSelected}
+          />
+        </div>
+      </div>
+    {/key}
   {/if}
+
+  {#if bubbleMenuItems.length > 0}
+    <div bind:this={bubbleMenu} class="bubble-menu-floating">
+      <BubbleMenuComponent
+        {editor}
+        {bubbleMenuItems}
+        on:backgroundSelected={handleBackgroundSelected}
+      />
+    </div>
+  {/if}
+  
   <div
     bind:this={element}
     class="w-full editor-bg-animated transition-colors duration-300"
-    style="background-color: {editorBackgroundColor}"
   />
 </div>
 
@@ -234,6 +369,43 @@
   :global(.editor-bg-animated) {
     transition: background-color 0.3s ease-in-out;
   }
+  
+  .toolbar-fixed {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  
+  :global(.bubble-menu-floating) {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  
+  :global(.bubble-menu-floating.is-active) {
+    visibility: visible;
+    pointer-events: auto;
+  }
+  
+  :global(.prose) {
+    max-width: 100% !important;
+  }
+  
+  :global(.prose-lg) {
+    font-size: 1rem;
+  }
+  
+  @media (min-width: 640px) {
+    :global(.prose-lg) {
+      font-size: 1.125rem;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    :global(.prose-lg) {
+      font-size: 1.25rem;
+    }
+  }
+  
   :global(.prose .tiptap-placeholder::before) {
     content: attr(data-placeholder);
     float: left;
@@ -241,6 +413,7 @@
     pointer-events: none;
     height: 0;
   }
+  
   :global(.collaboration-cursor__caret) {
     position: relative;
     margin-left: -1px;
@@ -250,6 +423,7 @@
     word-break: normal;
     pointer-events: none;
   }
+  
   :global(.collaboration-cursor__label) {
     position: absolute;
     top: -1.4em;

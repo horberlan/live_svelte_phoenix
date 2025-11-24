@@ -119,13 +119,36 @@ defmodule LiveSveltePheonixWeb.CreateSession do
   defp format_sessions_table(session) do
     {:ok, updated_at} = LiveSveltePheonix.Utils.huminize_date(session.updated_at)
 
-    html_content = Session.get_html_content(session, "")
+    html_content = if session.ydoc && byte_size(session.ydoc) > 0 do
+      doc = Yex.Doc.new()
+      :ok = Yex.apply_update(doc, session.ydoc)
+      xml_fragment = Yex.Doc.get_xml_fragment(doc, "default")
 
-    session_title =
-      case LiveSveltePheonix.Utils.parse_first_tag_text(html_content) do
-        {:ok, children} -> Floki.text(children)
-        _ -> ""
+      # Converter XmlFragment para string
+      # O y_ex deve retornar UTF-8 válido
+      xml_string = Yex.XmlFragment.to_string(xml_fragment)
+
+      # Verificar se a string é UTF-8 válida
+      if String.valid?(xml_string) do
+        xml_string
+      else
+        # Se não for válida, tentar corrigir apenas uma vez
+        case :unicode.characters_to_binary(xml_string, :latin1, :utf8) do
+          result when is_binary(result) and result != xml_string -> result
+          _ -> xml_string
+        end
       end
+    else
+      Session.get_html_content(session, "")
+    end
+
+    session_title = case LiveSveltePheonix.Utils.parse_first_tag_text(html_content) do
+      {:ok, children} ->
+        Floki.text(children)
+        |> String.trim()
+        |> String.slice(0, 120)
+      _ -> ""
+    end
 
     %{
       session_id: session.session_id,
