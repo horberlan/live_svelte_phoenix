@@ -12,6 +12,35 @@ module.exports = {
     "../lib/live_svelte_pheonix_web/**/*.*ex",
     "./svelte/**/*.svelte"
   ],
+  theme: {
+    extend: {
+      typography: {
+        DEFAULT: {
+          css: {
+            color: 'inherit',
+            p: {
+              color: 'inherit',
+            },
+            h1: {
+              color: 'inherit',
+            },
+            h2: {
+              color: 'inherit',
+            },
+            h3: {
+              color: 'inherit',
+            },
+            strong: {
+              color: 'inherit',
+            },
+            em: {
+              color: 'inherit',
+            },
+          },
+        },
+      },
+    },
+  },
   plugins: [
     require("@tailwindcss/forms"),
     require("@tailwindcss/typography"),

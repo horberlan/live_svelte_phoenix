@@ -1,13 +1,14 @@
 <script>
   import FontFamilyDropdown from './FontFamilyDropdown.svelte'
   import BackgroundSelector from './BackgroundSelector.svelte'
+  import TextColorSelector from './TextColorSelector.svelte'
   import { createEventDispatcher } from 'svelte'
 
   export let editor = null
   export let bubbleMenuItems = []
   
   const dispatch = createEventDispatcher()
-  let menuUpdate = 0 // Force menu update (same approach as toolbar)
+  let menuUpdate = 0
 
   function handleBackgroundSelected(event) {
     console.log('[BubbleMenu] Received backgroundSelected event:', event.detail)
@@ -57,6 +58,7 @@
       <div class="separator" />
       <FontFamilyDropdown {editor} />
       <div class="separator" />
+      <TextColorSelector {editor} />
       <BackgroundSelector
         {editor}
         on:backgroundSelected={handleBackgroundSelected}

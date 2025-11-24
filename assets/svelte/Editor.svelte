@@ -1,6 +1,7 @@
 <script>
   import BubbleMenuComponent from './menus_editor/BubbleMenu.svelte'
   import BackgroundSelector from './menus_editor/BackgroundSelector.svelte'
+  import TextColorSelector from './menus_editor/TextColorSelector.svelte'
   import { onMount, onDestroy } from 'svelte'
   import { Editor } from '@tiptap/core'
   import BubbleMenu from '@tiptap/extension-bubble-menu'
@@ -8,6 +9,7 @@
   import Placeholder from '@tiptap/extension-placeholder'
   import FontFamily from '@tiptap/extension-font-family'
   import { TextStyle } from '@tiptap/extension-text-style'
+  import Color from '@tiptap/extension-color'
   import Collaboration from '@tiptap/extension-collaboration'
   import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
   import * as Y from 'yjs'
@@ -146,6 +148,9 @@
         history: false,
       }),
       TextStyle,
+      Color.configure({
+        types: ['textStyle'],
+      }),
       FontFamily,
       Placeholder.configure({
         placeholder: intl.placeholder,
@@ -290,20 +295,7 @@
         }
       })
     }
-  })
-
-  onDestroy(() => {
-    console.log('[Editor] Component destroying, cleaning up...')
     
-    if (provider) {
-      provider.destroy()
-    }
-    if (editor) {
-      editor.destroy()
-    }
-  })
-  
-  onMount(() => {
     const handleBeforeUnload = () => {
       console.log('[Editor] Page unloading, cleaning up...')
       if (provider) {
@@ -315,6 +307,17 @@
     
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  })
+
+  onDestroy(() => {
+    console.log('[Editor] Component destroying, cleaning up...')
+    
+    if (provider) {
+      provider.destroy()
+    }
+    if (editor) {
+      editor.destroy()
     }
   })
 </script>
@@ -340,6 +343,7 @@
             </button>
           {/each}
           <div class="divider divider-horizontal mx-1" />
+          <TextColorSelector {editor} />
           <BackgroundSelector
             {editor}
             on:backgroundSelected={handleBackgroundSelected}
@@ -388,6 +392,67 @@
   
   :global(.prose) {
     max-width: 100% !important;
+  }
+  
+  :global(.ProseMirror) {
+    color: var(--bc);
+  }
+  
+  :global(.ProseMirror span[style*="color: #"]),
+  :global(.ProseMirror span[style*="color:#"]),
+  :global(.ProseMirror span[style*="color: rgb"]) {
+    all: unset;
+    display: inline;
+  }
+  
+  :global(.ProseMirror span[style*="color: #000000"]),
+  :global(.ProseMirror span[style*="color:#000000"]) {
+    color: #000000 !important;
+  }
+  
+  :global(.ProseMirror span[style*="color: #6B7280"]),
+  :global(.ProseMirror span[style*="color:#6B7280"]) {
+    color: #6B7280 !important;
+  }
+  
+  :global(.ProseMirror span[style*="color: #EF4444"]),
+  :global(.ProseMirror span[style*="color:#EF4444"]) {
+    color: #EF4444 !important;
+  }
+  
+  :global(.ProseMirror span[style*="color: #F97316"]),
+  :global(.ProseMirror span[style*="color:#F97316"]) {
+    color: #F97316 !important;
+  }
+  
+  :global(.ProseMirror span[style*="color: #EAB308"]),
+  :global(.ProseMirror span[style*="color:#EAB308"]) {
+    color: #EAB308 !important;
+  }
+  
+  :global(.ProseMirror span[style*="color: #22C55E"]),
+  :global(.ProseMirror span[style*="color:#22C55E"]) {
+    color: #22C55E !important;
+  }
+  
+  :global(.ProseMirror span[style*="color: #14B8A6"]),
+  :global(.ProseMirror span[style*="color:#14B8A6"]) {
+    color: #14B8A6 !important;
+  }
+  
+  :global(.ProseMirror span[style*="color: #3B82F6"]),
+  :global(.ProseMirror span[style*="color:#3B82F6"]) {
+    color: #3B82F6 !important;
+  }
+  
+  :global(.ProseMirror span[style*="color: #A855F7"]),
+  :global(.ProseMirror span[style*="color:#A855F7"]) {
+    color: #A855F7 !important;
+  }
+  
+  :global(.ProseMirror span[style*="color: #EC4899"]),
+  :global(.ProseMirror span[style*="color:#EC4899"]) {
+    color: #EC4899 !important;
   }
   
   :global(.prose-lg) {
