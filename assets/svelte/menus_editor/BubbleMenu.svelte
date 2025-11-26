@@ -6,40 +6,74 @@
 
   export let editor = null
   export let bubbleMenuItems = []
+  export let drawingMode = false
+  export let onToggleDrawing = null
   
   const dispatch = createEventDispatcher()
   let menuUpdate = 0
 
   function handleBackgroundSelected(event) {
     console.log('[BubbleMenu] Received backgroundSelected event:', event.detail)
-    // Forward the event to parent (Editor.svelte)
     dispatch('backgroundSelected', event.detail || event)
     console.log('[BubbleMenu] Forwarded to Editor')
   }
 
-  // Function to update menu
-  function updateMenu() {
-    menuUpdate++
+  let lastActiveState = ''
+  let updateTimeout = null
+
+  function checkAndUpdateMenu() {
+    if (!editor) return
+    
+    // Build current active state string
+    const currentState = bubbleMenuItems
+      .map(item => {
+        const activeArgs = item.active()
+        return Array.isArray(activeArgs) ? editor.isActive(...activeArgs) : false
+      })
+      .join(',')
+    
+    // Only update if state actually changed
+    if (currentState !== lastActiveState) {
+      lastActiveState = currentState
+      menuUpdate++
+    }
   }
 
-  // Setup editor listeners when editor changes
+  function debouncedUpdate() {
+    if (updateTimeout) clearTimeout(updateTimeout)
+    updateTimeout = setTimeout(checkAndUpdateMenu, 50)
+  }
+
   $: if (editor) {
-    // Remove old listeners if they exist
-    editor.off('selectionUpdate', updateMenu)
-    editor.off('transaction', updateMenu)
+    editor.off('selectionUpdate', debouncedUpdate)
+    editor.off('transaction', debouncedUpdate)
     
-    // Add new listeners
-    editor.on('selectionUpdate', updateMenu)
-    editor.on('transaction', updateMenu)
+    editor.on('selectionUpdate', debouncedUpdate)
+    editor.on('transaction', debouncedUpdate)
     
-    // Initial update
-    updateMenu()
+    checkAndUpdateMenu()
   }
 </script>
 
 {#if bubbleMenuItems.length > 0 && editor}
   {#key menuUpdate}
     <div class="bubble-menu-container">
+      {#if onToggleDrawing}
+        <button
+          type="button"
+          on:click={onToggleDrawing}
+          class="btn btn-sm {drawingMode ? 'btn-primary' : 'btn-ghost'} transition-all duration-200"
+          title={drawingMode ? 'Switch to text mode' : 'Switch to drawing mode'}
+        >
+          {#if drawingMode}
+            Text
+          {:else}
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-scribble"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 15c2 3 4 4 7 4s7 -3 7 -7s-3 -7 -6 -7s-5 1.5 -5 4s2 5 6 5s8.408 -2.453 10 -5" /></svg>
+          {/if}
+        </button>
+        <div class="separator" />
+      {/if}
+
       {#each bubbleMenuItems as item, index}
         {@const activeArgs = item.active()}
         {@const isActive = Array.isArray(activeArgs) ? editor.isActive(...activeArgs) : false}

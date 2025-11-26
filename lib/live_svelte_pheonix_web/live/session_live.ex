@@ -10,6 +10,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   alias LiveSveltePheonix.Session
   alias LiveSveltePheonix.DocumentSupervisor
   alias LiveSveltePheonix.CollaborativeDocument
+  alias LiveSveltePheonix.Drawing
   alias LiveSveltePheonixWeb.Presence
 
   @pubsub LiveSveltePheonix.PubSub
@@ -18,59 +19,71 @@ defmodule LiveSveltePheonixWeb.SessionLive do
 
   @impl true
   def render(assigns) do
+    IO.puts("[SessionLive] render called - strokes: #{length(assigns.drawing_strokes)}, version: #{assigns.drawing_strokes_version}, drawing_mode: #{assigns.drawing_mode}")
     ~H"""
     <main class="container p-2 rounded-md mx-auto bg-base-200 mb-4">
       <div class="flex flex-wrap justify-between">
         <.svelte name="status/Session" socket={@socket} />
         <.svelte name="invite/InviteUser" socket={@socket} />
       </div>
-      <div id={"session-wrapper-#{@session_id}"} class="relative" phx-hook="TrackClientCursor">
-        <.Editor
+
+      <%= if @drawing_mode do %>
+        <.svelte
+          name="DrawingCanvas"
           socket={@socket}
-          content={@content}
-          docId={@session_id}
-          userId={@user_id}
-          userName={@user_name}
-          enableCollaboration={true}
-          backgroundColor={@background_color}
+          id={"drawing-canvas-#{@session_id}"}
         />
-        <%= for user <- @users do %>
-          <%= if user.socket_id != @socket_id do %>
-            <div
-              id={"cursor-#{user.socket_id}"}
-              style={"position: absolute; left: #{user.x}%; top: #{user.y}%; transform: translate(-2px, -2px); transition: left 0.1s ease-out, top 0.1s ease-out;"}
-              class="pointer-events-none z-10 opacity-[0.8]"
-            >
-              <svg class="size-4" fill="none" viewBox="0 0 31 32">
-                <path
-                  fill={"url(#gradient-#{user.socket_id})"}
-                  d="m.609 10.86 5.234 15.488c1.793 5.306 8.344 7.175 12.666 3.612l9.497-7.826c4.424-3.646 3.69-10.625-1.396-13.27L11.88 1.2C5.488-2.124-1.697 4.033.609 10.859Z"
-                />
-                <defs>
-                  <linearGradient
-                    id={"gradient-#{user.socket_id}"}
-                    x1="-4.982"
-                    x2="23.447"
-                    y1="-8.607"
-                    y2="25.891"
-                    gradientUnits="userSpaceOnUse"
-                  >
-                    <stop class="[stop-color:oklch(var(--p))]" />
-                    <stop offset="1" class="[stop-color:oklch(var(--s))]" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div class="mt-1.4 ml-2">
-                <div class="bg-primary text-primary-content rounded-lg size-4 flex items-center justify-center">
-                  <span class="text-xs">
-                    {String.capitalize(String.first(user.username))}
-                  </span>
+        <!-- Debug: strokes count = <%= length(@drawing_strokes) %>, version = <%= @drawing_strokes_version %> -->
+      <% else %>
+        <div id={"session-wrapper-#{@session_id}"} class="relative" phx-hook="TrackClientCursor">
+          <.Editor
+            socket={@socket}
+            content={@content}
+            docId={@session_id}
+            userId={@user_id}
+            userName={@user_name}
+            enableCollaboration={true}
+            backgroundColor={@background_color}
+            drawingMode={@drawing_mode}
+          />
+          <%= for user <- @users do %>
+            <%= if user.socket_id != @socket_id do %>
+              <div
+                id={"cursor-#{user.socket_id}"}
+                style={"position: absolute; left: #{user.x}%; top: #{user.y}%; transform: translate(-2px, -2px); transition: left 0.1s ease-out, top 0.1s ease-out;"}
+                class="pointer-events-none z-10 opacity-[0.8]"
+              >
+                <svg class="size-6" fill="none" viewBox="0 0 31 32">
+                  <path
+                    fill={"url(#gradient-#{user.socket_id})"}
+                    d="m.609 10.86 5.234 15.488c1.793 5.306 8.344 7.175 12.666 3.612l9.497-7.826c4.424-3.646 3.69-10.625-1.396-13.27L11.88 1.2C5.488-2.124-1.697 4.033.609 10.859Z"
+                  />
+                  <defs>
+                    <linearGradient
+                      id={"gradient-#{user.socket_id}"}
+                      x1="-4.982"
+                      x2="23.447"
+                      y1="-8.607"
+                      y2="25.891"
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop class="[stop-color:oklch(var(--p))]" />
+                      <stop offset="1" class="[stop-color:oklch(var(--s))]" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <div class="mt-1.4 ml-2">
+                  <div class="bg-primary text-primary-content rounded-lg size-4 flex items-center justify-center">
+                    <span class="text-xs">
+                      {String.capitalize(String.first(user.username))}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+            <% end %>
           <% end %>
-        <% end %>
-      </div>
+        </div>
+      <% end %>
     </main>
     """
   end
@@ -93,6 +106,35 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     # Load background color from database
     background_color = Session.get_background_color(session_id)
 
+    # Load existing strokes from database
+    IO.puts("[SessionLive] ========== LOADING STROKES ==========")
+    IO.puts("[SessionLive] Session ID: #{session_id}")
+
+    strokes = case Drawing.list_strokes_by_session(session_id) do
+      {:ok, strokes} ->
+        IO.puts("[SessionLive] Loaded #{length(strokes)} strokes for session #{session_id}")
+
+        # Convert Ecto structs to simple maps for Svelte
+        serialized_strokes = Enum.map(strokes, fn stroke ->
+          %{
+            path_data: stroke.path_data,
+            color: stroke.color,
+            stroke_width: stroke.stroke_width
+          }
+        end)
+
+        if length(serialized_strokes) > 0 do
+          IO.puts("[SessionLive] First stroke preview:")
+          IO.inspect(List.first(serialized_strokes), label: "  First stroke")
+        end
+
+        serialized_strokes
+      {:error, reason} ->
+        require Logger
+        Logger.error("Failed to load strokes for session #{session_id}: #{inspect(reason)}")
+        []
+    end
+
     socket =
       socket
       |> assign(:session_id, session_id)
@@ -103,6 +145,9 @@ defmodule LiveSveltePheonixWeb.SessionLive do
       |> assign(:user_name, user_name)
       |> assign(:users, [])
       |> assign(:background_color, background_color)
+      |> assign(:drawing_strokes, strokes)
+      |> assign(:drawing_strokes_version, 0)
+      |> assign(:drawing_mode, false)
 
     if connected?(socket) do
       # Subscribe to cursor updates
@@ -110,6 +155,9 @@ defmodule LiveSveltePheonixWeb.SessionLive do
 
       # Subscribe to session updates (background color, etc)
       Phoenix.PubSub.subscribe(@pubsub, "session:#{session_id}")
+
+      # Subscribe to drawing events
+      Phoenix.PubSub.subscribe(@pubsub, drawing_topic(session_id))
 
       # Track this user's presence
       {:ok, _} =
@@ -231,6 +279,82 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   end
 
   @impl true
+  def handle_event("stroke_drawn", params, socket) do
+    session_id = socket.assigns.session_id
+    user_id = socket.assigns.user_id
+
+    path = Map.get(params, "path")
+    color = Map.get(params, "color")
+    stroke_width = Map.get(params, "stroke_width", 2.0)
+
+    IO.puts("[SessionLive] Received stroke_drawn event - session: #{session_id}, path length: #{String.length(path)}, color: #{color}, width: #{stroke_width}")
+
+    # Check rate limit
+    case LiveSveltePheonix.Drawing.RateLimiter.check_stroke_limit(session_id) do
+      {:ok, _remaining} ->
+        # Record the operation
+        LiveSveltePheonix.Drawing.RateLimiter.record_stroke(session_id)
+
+        # Proceed with creating the stroke
+        create_and_broadcast_stroke(socket, session_id, user_id, path, color, stroke_width)
+
+      {:error, :rate_limit_exceeded} ->
+        require Logger
+        Logger.warning("Rate limit exceeded for stroke creation in session #{session_id}")
+
+        {:noreply, put_flash(socket, :error, "Drawing too fast. Please slow down.")}
+    end
+  end
+
+  @impl true
+  def handle_event("clear_canvas", _params, socket) do
+    session_id = socket.assigns.session_id
+    IO.puts("[SessionLive] ========== CLEAR CANVAS EVENT ==========")
+    IO.puts("[SessionLive] Session: #{session_id}")
+
+    clear_and_broadcast(socket, session_id)
+  end
+
+  @impl true
+  def handle_event("test_event", params, socket) do
+    IO.puts("[SessionLive] ✅ TEST EVENT RECEIVED!")
+    IO.inspect(params, label: "  Test params")
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("toggle_drawing_mode", _params, socket) do
+    new_mode = !socket.assigns.drawing_mode
+    current_strokes = socket.assigns.drawing_strokes
+    current_version = socket.assigns.drawing_strokes_version
+
+    # Always increment version when switching to drawing mode
+    new_version = if new_mode, do: current_version + 1, else: current_version
+
+    IO.puts("[SessionLive] ========== TOGGLE DRAWING MODE ==========")
+    IO.puts("[SessionLive] Mode: #{socket.assigns.drawing_mode} -> #{new_mode}")
+    IO.puts("[SessionLive] Strokes: #{length(current_strokes)}")
+    IO.puts("[SessionLive] Version: #{current_version} -> #{new_version}")
+
+    socket = socket
+      |> assign(:drawing_mode, new_mode)
+      |> assign(:drawing_strokes_version, new_version)
+
+    # If switching to drawing mode and there are strokes, push them via event
+    socket = if new_mode and length(current_strokes) > 0 do
+      IO.puts("[SessionLive] Pushing #{length(current_strokes)} strokes via load_strokes event")
+      push_event(socket, "load_strokes", %{
+        strokes: current_strokes,
+        version: new_version
+      })
+    else
+      socket
+    end
+
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_info({CollaborativeDocument, "yjs_update", payload}, socket) do
     IO.puts("[SessionLive] Broadcasting yjs_update to client, doc: #{payload.doc_id}")
     push_event(socket, "yjs_update", payload)
@@ -256,7 +380,177 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     {:noreply, push_event(socket, "background_color_updated", %{color: color})}
   end
 
+  @impl true
+  def handle_info({:new_stroke, stroke_data}, socket) do
+    IO.puts("[SessionLive] Received :new_stroke broadcast")
+    IO.inspect(stroke_data, label: "  Stroke data")
+
+    # Update the strokes list in the socket assigns
+    new_stroke = %{
+      path_data: stroke_data.path,
+      color: stroke_data.color,
+      stroke_width: stroke_data.strokeWidth
+    }
+
+    updated_strokes = socket.assigns.drawing_strokes ++ [new_stroke]
+    new_version = socket.assigns.drawing_strokes_version + 1
+
+    IO.puts("[SessionLive] Updated strokes count: #{length(updated_strokes)}, version: #{new_version}")
+    IO.puts("[SessionLive] Assigning updated strokes to socket - this should trigger re-render")
+
+    # Only push event if in drawing mode (component is mounted)
+    socket = if socket.assigns.drawing_mode do
+      IO.puts("[SessionLive] In drawing mode, pushing new_stroke event to Svelte")
+      push_event(socket, "new_stroke", %{
+        path_data: stroke_data.path,
+        color: stroke_data.color,
+        stroke_width: stroke_data.strokeWidth
+      })
+    else
+      IO.puts("[SessionLive] Not in drawing mode, skipping push_event")
+      socket
+    end
+
+    # Assign the updated strokes with version - LiveView will detect the change and re-render
+    {:noreply, socket
+      |> assign(:drawing_strokes, updated_strokes)
+      |> assign(:drawing_strokes_version, new_version)
+    }
+  end
+
+  @impl true
+  def handle_info({:clear_canvas, _session_id}, socket) do
+    new_version = socket.assigns.drawing_strokes_version + 1
+    IO.puts("[SessionLive] Clearing canvas, resetting strokes to empty list, version: #{new_version}")
+
+    # Only push event if in drawing mode (component is mounted)
+    socket = if socket.assigns.drawing_mode do
+      IO.puts("[SessionLive] In drawing mode, pushing canvas_cleared event to Svelte")
+      push_event(socket, "canvas_cleared", %{})
+    else
+      IO.puts("[SessionLive] Not in drawing mode, skipping push_event")
+      socket
+    end
+
+    {:noreply, socket
+      |> assign(:drawing_strokes, [])
+      |> assign(:drawing_strokes_version, new_version)
+    }
+  end
+
   # --- Private Helpers ---
+
+  defp create_and_broadcast_stroke(socket, session_id, user_id, path, color, stroke_width \\ 2.0) do
+    IO.puts("[SessionLive] Creating stroke - session: #{session_id}, user: #{user_id}, width: #{stroke_width}")
+
+    case Drawing.create_stroke(%{
+      session_id: session_id,
+      path_data: path,
+      color: color,
+      stroke_width: stroke_width,
+      user_id: user_id
+    }) do
+      {:ok, stroke} ->
+        IO.puts("[SessionLive] Stroke created successfully with id: #{stroke.id}")
+
+        # Serialize the stroke for consistency
+        serialized_stroke = %{
+          path_data: stroke.path_data,
+          color: stroke.color,
+          stroke_width: stroke.stroke_width
+        }
+
+        # Update local strokes list with serialized data
+        updated_strokes = socket.assigns.drawing_strokes ++ [serialized_stroke]
+        new_version = socket.assigns.drawing_strokes_version + 1
+
+        IO.puts("[SessionLive] Updating socket with #{length(updated_strokes)} strokes, version: #{new_version}")
+        IO.inspect(serialized_stroke, label: "  New stroke")
+
+        socket = socket
+        |> assign(:drawing_strokes, updated_strokes)
+        |> assign(:drawing_strokes_version, new_version)
+
+        IO.puts("[SessionLive] Socket updated, strokes count: #{length(socket.assigns.drawing_strokes)}")
+
+        # Broadcast stroke to other users in the session
+        serialized_data = serialize_stroke(stroke)
+        case Phoenix.PubSub.broadcast_from(
+          @pubsub,
+          self(),
+          drawing_topic(session_id),
+          {:new_stroke, serialized_data}
+        ) do
+          :ok ->
+            IO.puts("[SessionLive] Stroke broadcast successfully to session #{session_id}")
+          {:error, reason} ->
+            require Logger
+            Logger.error("Failed to broadcast stroke for session #{session_id}: #{inspect(reason)}")
+        end
+
+        {:noreply, socket}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        require Logger
+        Logger.warning("Validation error creating stroke for session #{session_id}: #{inspect(changeset.errors)}")
+
+        error_message = format_changeset_errors(changeset)
+
+        {:noreply, put_flash(socket, :error, "Failed to save stroke: #{error_message}")}
+
+      {:error, :database_error} ->
+        require Logger
+        Logger.error("Database error creating stroke for session #{session_id}")
+
+        {:noreply, put_flash(socket, :error, "Database error. Please try again.")}
+
+      {:error, reason} ->
+        require Logger
+        Logger.error("Unexpected error creating stroke for session #{session_id}: #{inspect(reason)}")
+
+        {:noreply, put_flash(socket, :error, "An unexpected error occurred")}
+    end
+  end
+
+    defp clear_and_broadcast(socket, session_id) do
+    case Drawing.delete_strokes_by_session(session_id) do
+      {:ok, _count} ->
+        IO.puts("[SessionLive] Deleted strokes from DB for session #{session_id}")
+
+        # 1) push event directly to the origin LiveView -> ensures the origin client clears immediately
+        socket = if socket.assigns.drawing_mode do
+          IO.puts("[SessionLive] Pushing canvas_cleared to origin client")
+          push_event(socket, "canvas_cleared", %{})
+        else
+          socket
+        end
+
+        # 2) broadcast to other LiveViews in the session (broadcast_from excludes origin)
+        case Phoenix.PubSub.broadcast_from(
+               @pubsub,
+               self(),
+               drawing_topic(session_id),
+               {:clear_canvas, session_id}
+             ) do
+          :ok -> IO.puts("[SessionLive] Broadcasted clear_canvas to other participants")
+          {:error, reason} ->
+            require Logger
+            Logger.error("Failed to broadcast clear event for session #{session_id}: #{inspect(reason)}")
+        end
+
+        new_version = socket.assigns.drawing_strokes_version + 1
+
+        {:noreply, socket
+          |> assign(:drawing_strokes, [])
+          |> assign(:drawing_strokes_version, new_version)
+        }
+
+      {:error, reason} ->
+        require Logger
+        Logger.error("Failed to delete strokes for session #{session_id}: #{inspect(reason)}")
+        {:noreply, put_flash(socket, :error, "Failed to clear canvas. Please try again.")}
+    end
+  end
 
   defp get_or_create_session(session_id, session_data) do
     case Repo.get_by(Session, session_id: session_id) do
@@ -301,4 +595,26 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   defp parse_float(_), do: 0.0
 
   defp cursor_topic(session_id), do: "cursors:#{session_id}"
+
+  defp drawing_topic(session_id), do: "drawing:#{session_id}"
+
+  defp serialize_stroke(stroke) do
+    %{
+      path: stroke.path_data,
+      color: stroke.color,
+      strokeWidth: stroke.stroke_width
+    }
+  end
+
+  defp format_changeset_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    end)
+    |> Enum.map(fn {field, errors} ->
+      "#{field}: #{Enum.join(errors, ", ")}"
+    end)
+    |> Enum.join("; ")
+  end
 end

@@ -19,6 +19,7 @@ defmodule LiveSveltePheonix.Application do
       LiveSveltePheonixWeb.Presence,
       {Registry, keys: :unique, name: LiveSveltePheonix.DocumentRegistry},
       LiveSveltePheonix.DocumentSupervisor,
+      LiveSveltePheonix.Drawing.RateLimiter,
       {Finch, name: LiveSveltePheonix.Finch},
       LiveSveltePheonixWeb.Endpoint
     ]
