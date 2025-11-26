@@ -22,6 +22,9 @@
   let strokeLimitWarningShown = false
   let clearDisabled = false
 
+  // Redo stack (stores strokes that were undone)
+  let redoStack = []
+
   // Opções de espessura para o dropdown
   const strokeWidthOptions = [2, 3, 5, 8, 12]
 
@@ -66,7 +69,16 @@
         if (ctx) setTimeout(() => redrawAll(), 50)
       })
 
-      unregisterHandlers = [h1, h2, h3].filter(Boolean)
+      const h4 = live.handleEvent('stroke_undone', () => {
+        // Server confirmed undo - sync local state
+        // Remove last stroke from local state (already done by server)
+        if (localStrokes.length > 0) {
+          localStrokes = localStrokes.slice(0, -1)
+          if (ctx) redrawAll()
+        }
+      })
+
+      unregisterHandlers = [h1, h2, h3, h4].filter(Boolean)
     }
 
     setTimeout(() => {
@@ -184,12 +196,58 @@
   function submitStroke(path, color) {
     const payload = { path, color, stroke_width: strokeWidth }
     const newStroke = { path_data: path, color, stroke_width: strokeWidth }
+
+    // Clear redo stack on new action (can't redo after new stroke)
+    redoStack = []
+
     localStrokes = [...localStrokes, newStroke]
     drawLine(path, color, strokeWidth)
     try {
       if (live && live.pushEvent) live.pushEvent('stroke_drawn', payload)
     } catch (e) {
       console.error('[DrawingCanvas] Error pushing stroke_drawn:', e)
+    }
+  }
+
+  function handleUndo() {
+    if (localStrokes.length === 0) return
+
+    // Save current stroke to redo stack before removing
+    const strokeToUndo = localStrokes[localStrokes.length - 1]
+    redoStack = [...redoStack, strokeToUndo]
+
+    // Update local state immediately for responsiveness
+    localStrokes = localStrokes.slice(0, -1)
+    if (ctx) redrawAll()
+
+    // Sync with server (will delete from DB and broadcast to others)
+    try {
+      if (live && live.pushEvent) {
+        live.pushEvent('undo_stroke', {})
+      }
+    } catch (e) {
+      console.error('[DrawingCanvas] Error pushing undo_stroke:', e)
+    }
+  }
+
+  function handleRedo() {
+    if (redoStack.length === 0) return
+
+    // Get the stroke to restore from redo stack
+    const strokeToRestore = redoStack[redoStack.length - 1]
+    redoStack = redoStack.slice(0, -1)
+
+    // Update local state immediately for responsiveness
+    localStrokes = [...localStrokes, strokeToRestore]
+    if (ctx) redrawAll()
+
+    // Sync with server - send the stroke data to recreate in DB
+    try {
+      if (live && live.pushEvent) {
+        live.pushEvent('redo_stroke', { stroke: strokeToRestore })
+      }
+    } catch (e) {
+      console.error('[DrawingCanvas] Error pushing redo_stroke:', e)
     }
   }
 
@@ -201,6 +259,10 @@
 
   function handleClear() {
     if (clearDisabled) return
+
+    // Clear redo stack on clear action
+    redoStack = []
+
     localStrokes = []
     strokeLimitWarningShown = false
     if (ctx) clearCanvas()
@@ -245,7 +307,7 @@
 </script>
 
 {#if isLoading}
-  <div class="relative mb-4 w-full max-w-7xl mx-auto">
+  <div class="relative mb-4 w-full">
     <div
       class="toolbar-fixed mb-4 p-3 bg-base-100 rounded-lg shadow-md border border-base-300"
     >
@@ -254,7 +316,7 @@
     <div class="skeleton h-96 w-full rounded-lg"></div>
   </div>
 {:else}
-  <div class="relative mb-4 w-full max-w-7xl mx-auto">
+  <div class="relative mb-4 w-full">
     <div
       class="toolbar-fixed mb-4 p-2 bg-base-100 rounded-lg shadow-md border border-base-300"
     >
@@ -286,10 +348,10 @@
         ></div>
         <button
           type="button"
-          disabled="disabled"
-          class="btn btn-sm btn-ghost gap-2 text-base-content/70 hover:text-base-content"
-          on:click={() => live.pushEvent('undo_last_drawing', {})}
-          title="Voltar ao modo texto"
+          disabled={localStrokes.length === 0}
+          class="btn btn-sm btn-ghost gap-2 text-base-content/70 hover:text-base-content disabled:opacity-30"
+          on:click={handleUndo}
+          title="Desfazer (Undo)"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -309,10 +371,10 @@
         </button>
         <button
           type="button"
-          disabled="disabled"
-          class="btn btn-sm btn-ghost gap-2 text-base-content/70 hover:text-base-content"
-          on:click={() => live.pushEvent('forward_last_drawing', {})}
-          title="Voltar ao modo texto"
+          disabled={redoStack.length === 0}
+          class="btn btn-sm btn-ghost gap-2 text-base-content/70 hover:text-base-content disabled:opacity-30"
+          on:click={handleRedo}
+          title="Refazer (Redo)"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -458,8 +520,9 @@
             class="text-xs font-mono opacity-50 hidden sm:inline-block"
             title="Strokes"
           >
-            {localStrokes.length}
-            <span class="text-[10px]">/ {MAX_STROKES_PER_SESSION}</span>
+            <span class="text-[10px]"
+              >{localStrokes.length}/{MAX_STROKES_PER_SESSION}</span
+            >
           </span>
 
           <button
@@ -469,7 +532,21 @@
             title="Limpar tudo"
             disabled={clearDisabled}
           >
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-eraser"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19 20h-10.5l-4.21 -4.3a1 1 0 0 1 0 -1.41l10 -10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41l-9.2 9.3" /><path d="M18 13.3l-6.3 -6.3" /></svg>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="icon icon-tabler icons-tabler-outline icon-tabler-eraser"
+              ><path stroke="none" d="M0 0h24v24H0z" fill="none" /><path
+                d="M19 20h-10.5l-4.21 -4.3a1 1 0 0 1 0 -1.41l10 -10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41l-9.2 9.3"
+              /><path d="M18 13.3l-6.3 -6.3" /></svg
+            >
           </button>
         </div>
       </div>
@@ -477,7 +554,7 @@
 
     <canvas
       bind:this={canvas}
-      class="drawing-canvas block w-full bg-white rounded-lg cursor-crosshair shadow-inner border border-base-200"
+      class="drawing-canvas block w-full bg-base-300 rounded-lg shadow-inner border border-base-200"
       style="height: 1200px; display: block;"
       on:mousedown={startDrawing}
       on:mousemove={draw}
@@ -494,12 +571,15 @@
 <style>
   .drawing-canvas {
     touch-action: none;
-    background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
-    background-size: 20px 20px;
+    /* background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+    background-size: 20px 20px; */
   }
   .toolbar-fixed {
     position: sticky;
     top: 0;
     z-index: 30;
+  }
+  canvas {
+    cursor: url('data:image/svg+xml;utf8,<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M4.49116 10.3175L3.35405 5.68851C2.93458 3.98089 4.76445 2.60198 6.2903 3.47589L10.4265 5.84487C11.1996 5.62294 12.0633 5.88333 12.5762 6.564L23.4089 20.9394C24.0737 21.8216 23.8974 23.0756 23.0153 23.7403L18.2235 27.3512C17.3413 28.016 16.0873 27.8397 15.4226 26.9576L4.58989 12.5821C4.07697 11.9015 4.06475 10.9994 4.49116 10.3175ZM5.58535 10.5799L4.32518 5.44995C4.11544 4.59614 5.03038 3.90669 5.79331 4.34364L10.3772 6.96899C10.8182 6.63662 11.4452 6.72474 11.7776 7.16581L22.6103 21.5412C22.9426 21.9823 22.8545 22.6093 22.4135 22.9417L17.6216 26.5526C17.1806 26.885 16.5536 26.7968 16.2212 26.3558L5.38853 11.9803C5.05615 11.5393 5.14427 10.9123 5.58535 10.5799Z" fill="white"/><path d="M4.32518 5.44996L5.58534 10.5799C5.14427 10.9123 5.05615 11.5393 5.38852 11.9803L16.2212 26.3558C16.5536 26.7969 17.1806 26.885 17.6216 26.5526L22.4135 22.9417C22.8545 22.6093 22.9426 21.9823 22.6103 21.5413L11.7776 7.16582C11.4452 6.72474 10.8182 6.63662 10.3772 6.969L5.7933 4.34365C5.03038 3.90669 4.11544 4.59615 4.32518 5.44996Z" fill="%23FF8CFF"/><path fill-rule="evenodd" clip-rule="evenodd" d="M22.6103 21.5413C22.9427 21.9823 22.8546 22.6093 22.4135 22.9417L20.0176 24.7472L18.814 23.1499L22.0085 20.7426L12.3794 7.96448L9.18491 10.3717L4.69453 4.41278C4.99241 4.18831 5.41187 4.12519 5.79334 4.34366L10.3772 6.96901C10.8183 6.63664 11.4453 6.72476 11.7776 7.16583L22.6103 21.5413ZM9.18491 10.3717L18.814 23.1499L15.6194 25.5572L5.99036 12.779L9.18491 10.3717Z" fill="%23FFB1FF"/><path d="M18.814 23.1499L22.0085 20.7426L12.3794 7.96448L9.18491 10.3717L18.814 23.1499Z" fill="%23FFC4FF"/><path d="M15.2495 25.0568L14.62 24.2214C14.7416 24.0342 14.8345 23.8444 14.925 23.6497C14.9418 23.6135 14.9587 23.5767 14.9758 23.5392C15.1763 23.1017 15.4152 22.5805 15.9829 22.1528C16.5735 21.7077 17.2367 21.5747 17.782 21.4652L17.8172 21.4582C18.3982 21.3415 18.8519 21.2429 19.2468 20.9454C19.6068 20.6741 19.7482 20.3686 19.96 19.9111L19.9996 19.8256C20.1413 19.5208 20.3082 19.1841 20.5819 18.84L21.2114 19.6754C21.0898 19.8626 20.997 20.0524 20.9065 20.2471C20.8897 20.2832 20.8728 20.3201 20.8556 20.3576C20.6551 20.7951 20.4163 21.3162 19.8486 21.744C19.2579 22.1891 18.5948 22.3221 18.0494 22.4315L18.0142 22.4386C17.4332 22.5553 16.9795 22.6539 16.5847 22.9514C16.2246 23.2227 16.0832 23.5282 15.8714 23.9857L15.8318 24.0711C15.6901 24.376 15.5232 24.7128 15.2495 25.0568Z" fill="%23B37CB3"/><path d="M7.42144 14.6781L6.79192 13.8427C6.91357 13.6555 7.00638 13.4657 7.09689 13.2709C7.11369 13.2348 7.13059 13.1979 7.14777 13.1604C7.34825 12.723 7.58711 12.2018 8.15477 11.774C8.74542 11.329 9.40859 11.1959 9.95395 11.0865L9.98917 11.0794C10.5701 10.9627 11.0238 10.8642 11.4187 10.5666C11.7787 10.2953 11.9201 9.98986 12.1319 9.53234L12.1716 9.4469C12.3132 9.14205 12.4802 8.80532 12.7538 8.46126L13.3833 9.29667C13.2617 9.48385 13.1689 9.67364 13.0784 9.86837C13.0616 9.90451 13.0447 9.94138 13.0275 9.97886C12.827 10.4163 12.5882 10.9375 12.0205 11.3653C11.4299 11.8103 10.7667 11.9434 10.2213 12.0528L10.1861 12.0599C9.60517 12.1766 9.15146 12.2751 8.75659 12.5727C8.39656 12.844 8.25515 13.1494 8.04334 13.607L8.00373 13.6924C7.86204 13.9973 7.69511 14.334 7.42144 14.6781Z" fill="%23B37CB3"/></svg>') 4 0, auto;
   }
 </style>

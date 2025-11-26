@@ -15,13 +15,11 @@ defmodule LiveSveltePheonixWeb.SessionLive do
 
   @pubsub LiveSveltePheonix.PubSub
 
-  # --- Data Structures ---
-
   @impl true
   def render(assigns) do
     IO.puts("[SessionLive] render called - strokes: #{length(assigns.drawing_strokes)}, version: #{assigns.drawing_strokes_version}, drawing_mode: #{assigns.drawing_mode}")
     ~H"""
-    <main class="container p-2 rounded-md mx-auto bg-base-200 mb-4">
+    <main class="container p-2 rounded-md min-w-[100vw] bg-base-200 mb-4">
       <div class="flex flex-wrap justify-between">
         <.svelte name="status/Session" socket={@socket} />
         <.svelte name="invite/InviteUser" socket={@socket} />
@@ -53,12 +51,9 @@ defmodule LiveSveltePheonixWeb.SessionLive do
                 style={"position: absolute; left: #{user.x}%; top: #{user.y}%; transform: translate(-2px, -2px); transition: left 0.1s ease-out, top 0.1s ease-out;"}
                 class="pointer-events-none z-10 opacity-[0.8]"
               >
-                <svg class="size-6" fill="none" viewBox="0 0 31 32">
-                  <path
-                    fill={"url(#gradient-#{user.socket_id})"}
-                    d="m.609 10.86 5.234 15.488c1.793 5.306 8.344 7.175 12.666 3.612l9.497-7.826c4.424-3.646 3.69-10.625-1.396-13.27L11.88 1.2C5.488-2.124-1.697 4.033.609 10.859Z"
-                  />
-                  <defs>
+              <svg class="size-6" viewBox="0 0 353 352" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path fill={"url(#gradient-#{user.socket_id})"} d="M7.92098 39.7644C2.74077 20.4315 20.4315 2.74077 39.7643 7.92098L326.684 84.8007C350.513 91.1858 352.885 124.064 330.219 133.803L197.998 190.615C191.751 193.3 186.805 198.324 184.218 204.612L133.462 327.987C123.998 350.99 90.7404 348.851 84.3027 324.825L7.92098 39.7644Z" fill="#2163DE" stroke="white" stroke-width="14"/>
+                <defs>
                     <linearGradient
                       id={"gradient-#{user.socket_id}"}
                       x1="-4.982"
@@ -71,11 +66,14 @@ defmodule LiveSveltePheonixWeb.SessionLive do
                       <stop offset="1" class="[stop-color:oklch(var(--s))]" />
                     </linearGradient>
                   </defs>
-                </svg>
-                <div class="mt-1.4 ml-2">
-                  <div class="bg-primary text-primary-content rounded-lg size-4 flex items-center justify-center">
+              </svg>
+                <div class="ml-4">
+                  <div class="bg-secondary text-secondary-content rounded-lg px-2 py-1 flex items-center justify-center">
                     <span class="text-xs">
-                      {String.capitalize(String.first(user.username))}
+                      <%=
+                        [prefix | _] = String.split(user.username, "@")
+                        String.capitalize(prefix)
+                      %>
                     </span>
                   </div>
                 </div>
@@ -181,8 +179,6 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     CollaborativeDocument.unsubscribe(socket.assigns.session_id, self())
     :ok
   end
-
-  # --- Event Handling ---
 
   @impl true
   def handle_event("yjs_provider_ready", %{"doc_id" => doc_id}, socket) do
@@ -323,6 +319,38 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   end
 
   @impl true
+  def handle_event("undo_stroke", _params, socket) do
+    session_id = socket.assigns.session_id
+    IO.puts("[SessionLive] ========== UNDO STROKE EVENT ==========")
+    IO.puts("[SessionLive] Session: #{session_id}")
+
+    undo_and_broadcast(socket, session_id)
+  end
+
+  @impl true
+  def handle_event("redo_stroke", %{"stroke" => stroke_data}, socket) do
+    session_id = socket.assigns.session_id
+    user_id = socket.assigns.user_id
+
+    path = Map.get(stroke_data, "path_data")
+    color = Map.get(stroke_data, "color")
+    stroke_width = Map.get(stroke_data, "stroke_width", 2.0)
+
+    IO.puts("[SessionLive] ========== REDO STROKE EVENT ==========")
+    IO.puts("[SessionLive] Session: #{session_id}, restoring stroke")
+
+    # Re-create the stroke in the database
+    create_and_broadcast_stroke(socket, session_id, user_id, path, color, stroke_width)
+  end
+
+  @impl true
+  def handle_event("redo_stroke", _params, socket) do
+    # Fallback if no stroke data provided
+    IO.puts("[SessionLive] Redo stroke event received without stroke data")
+    {:noreply, socket}
+  end
+
+  @impl true
   def handle_event("toggle_drawing_mode", _params, socket) do
     new_mode = !socket.assigns.drawing_mode
     current_strokes = socket.assigns.drawing_strokes
@@ -438,7 +466,30 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     }
   end
 
-  # --- Private Helpers ---
+  @impl true
+  def handle_info({:stroke_undone, _session_id}, socket) do
+    IO.puts("[SessionLive] Received :stroke_undone broadcast")
+
+    # Update the strokes list (remove last)
+    updated_strokes = socket.assigns.drawing_strokes |> Enum.drop(-1)
+    new_version = socket.assigns.drawing_strokes_version + 1
+
+    IO.puts("[SessionLive] Updated strokes count after undo: #{length(updated_strokes)}, version: #{new_version}")
+
+    # Only push event if in drawing mode (component is mounted)
+    socket = if socket.assigns.drawing_mode do
+      IO.puts("[SessionLive] In drawing mode, pushing stroke_undone event to Svelte")
+      push_event(socket, "stroke_undone", %{})
+    else
+      IO.puts("[SessionLive] Not in drawing mode, skipping push_event")
+      socket
+    end
+
+    {:noreply, socket
+      |> assign(:drawing_strokes, updated_strokes)
+      |> assign(:drawing_strokes_version, new_version)
+    }
+  end
 
   defp create_and_broadcast_stroke(socket, session_id, user_id, path, color, stroke_width \\ 2.0) do
     IO.puts("[SessionLive] Creating stroke - session: #{session_id}, user: #{user_id}, width: #{stroke_width}")
@@ -512,7 +563,48 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     end
   end
 
-    defp clear_and_broadcast(socket, session_id) do
+  defp undo_and_broadcast(socket, session_id) do
+    case Drawing.delete_last_stroke(session_id) do
+      {:ok, nil} ->
+        IO.puts("[SessionLive] No strokes to undo for session #{session_id}")
+        {:noreply, socket}
+
+      {:ok, _deleted_stroke} ->
+        IO.puts("[SessionLive] Deleted last stroke from DB for session #{session_id}")
+
+        # Update local strokes list (remove last)
+        updated_strokes = socket.assigns.drawing_strokes |> Enum.drop(-1)
+        new_version = socket.assigns.drawing_strokes_version + 1
+
+        IO.puts("[SessionLive] Updated strokes count: #{length(updated_strokes)}, version: #{new_version}")
+
+        # Note: Don't push event to origin client - they already updated locally before sending the event
+        # Only broadcast to OTHER users in the session
+        case Phoenix.PubSub.broadcast_from(
+               @pubsub,
+               self(),
+               drawing_topic(session_id),
+               {:stroke_undone, session_id}
+             ) do
+          :ok -> IO.puts("[SessionLive] Broadcasted stroke_undone to other participants")
+          {:error, reason} ->
+            require Logger
+            Logger.error("Failed to broadcast undo event for session #{session_id}: #{inspect(reason)}")
+        end
+
+        {:noreply, socket
+          |> assign(:drawing_strokes, updated_strokes)
+          |> assign(:drawing_strokes_version, new_version)
+        }
+
+      {:error, reason} ->
+        require Logger
+        Logger.error("Failed to undo stroke for session #{session_id}: #{inspect(reason)}")
+        {:noreply, put_flash(socket, :error, "Failed to undo. Please try again.")}
+    end
+  end
+
+  defp clear_and_broadcast(socket, session_id) do
     case Drawing.delete_strokes_by_session(session_id) do
       {:ok, _count} ->
         IO.puts("[SessionLive] Deleted strokes from DB for session #{session_id}")

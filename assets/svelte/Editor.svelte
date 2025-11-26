@@ -315,7 +315,7 @@
   })
 </script>
 
-<div class="relative mb-4 w-full max-w-7xl mx-auto">
+<div class="relative mb-4 w-full">
   {#if editor}
     {#key toolbarUpdate}
       <div class="toolbar-fixed mb-4 p-3 bg-base-100 rounded-lg shadow-md border border-base-300">

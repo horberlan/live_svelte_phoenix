@@ -181,6 +181,58 @@ defmodule LiveSveltePheonix.Drawing do
   end
 
   @doc """
+  Deletes the last stroke for a given session (most recently inserted).
+
+  Used for undo functionality.
+
+  ## Parameters
+
+    - session_id: The session ID to delete the last stroke for
+
+  ## Returns
+
+    - {:ok, %Stroke{}} with the deleted stroke on success
+    - {:ok, nil} if no strokes exist for the session
+    - {:error, :database_error} on database failure
+
+  ## Examples
+
+      iex> delete_last_stroke("abc-123")
+      {:ok, %Stroke{}}
+  """
+  def delete_last_stroke(session_id) do
+    try do
+      # Find the last stroke for this session
+      last_stroke = Stroke
+      |> where([s], s.session_id == ^session_id)
+      |> order_by([s], desc: s.inserted_at)
+      |> limit(1)
+      |> Repo.one()
+
+      case last_stroke do
+        nil ->
+          {:ok, nil}
+
+        stroke ->
+          case Repo.delete(stroke) do
+            {:ok, deleted} -> {:ok, deleted}
+            {:error, _} -> {:error, :database_error}
+          end
+      end
+    rescue
+      e in Ecto.QueryError ->
+        require Logger
+        Logger.error("Database error deleting last stroke for session #{session_id}: #{inspect(e)}")
+        {:error, :database_error}
+
+      e ->
+        require Logger
+        Logger.error("Unexpected error deleting last stroke for session #{session_id}: #{inspect(e)}")
+        {:error, :unexpected_error}
+    end
+  end
+
+  @doc """
   Counts strokes for a session.
 
   Useful for implementing limits on the number of strokes per session.
