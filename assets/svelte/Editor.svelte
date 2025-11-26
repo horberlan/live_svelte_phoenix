@@ -237,6 +237,19 @@
       onCreate: ({ editor }) => {
         editor.on('selectionUpdate', updateToolbar)
         editor.on('transaction', updateToolbar)
+        
+        // If collaboration is enabled and there's initial content but the doc is empty,
+        // insert the initial content after a short delay to allow Yjs to sync
+        if (enableCollaboration && content && content.trim()) {
+          setTimeout(() => {
+            // Check if the editor is still empty after Yjs sync
+            const currentContent = editor.getHTML()
+            if (!currentContent || currentContent === '<p></p>' || currentContent.trim() === '') {
+              console.log('[Editor] Inserting initial content:', content)
+              editor.commands.setContent(content)
+            }
+          }, 500)
+        }
       },
     })
     

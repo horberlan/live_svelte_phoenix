@@ -232,7 +232,7 @@
 </script>
 
 <div class="w-full p-4">
-  <NoteInput />
+  <NoteInput {live} />
   {#if !corrected_sessions || corrected_sessions.length === 0}
     <div
       class="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 gap-4"
@@ -295,13 +295,13 @@
               draggable="false"
             >
               <div class="card-body p-4">
-                <div class="flex items-start justify-between gap-2 mb-2">
-                  {#if session.shared_users && session.shared_users.length > 0}
+                {#if session.shared_users && session.shared_users.length > 0}
+                  <div class="flex items-start justify-between gap-2 mb-2">
                     <div class="badge badge-secondary badge-sm gap-1">
                       {i18n.shared}
                     </div>
-                  {/if}
-                </div>
+                  </div>
+                {/if}
 
                 <h2
                   class="card-title text-base font-bold leading-tight line-clamp-2"
