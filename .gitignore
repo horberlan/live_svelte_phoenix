@@ -1,6 +1,8 @@
 env.nu
 .env
 env.sh
+
+.kiro
 # The directory Mix will write compiled artifacts to.
 /_build/
 
