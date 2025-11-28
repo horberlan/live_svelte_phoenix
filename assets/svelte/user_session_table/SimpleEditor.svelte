@@ -200,7 +200,7 @@
     use:motion
     class="w-full max-w-6xl mx-auto mb-6 origin-top"
   >
-    <div class="bg-base-100 rounded-lg shadow-2xl flex flex-col border border-base-300 overflow-hidden" style="max-height: 80vh;">
+    <div class="bg-base-100 rounded-lg shadow-2xl flex flex-col border border-base-300 overflow-hidden">
       <!-- Header -->
       <Motion
         initial={{ opacity: 0, x: -10 }}
@@ -274,9 +274,9 @@
         transition={{ ...tweenConfig, delay: 0.2 }}
         let:motion
       >
-        <div use:motion class="flex-1 overflow-y-auto p-6 bg-base-200">
+        <div use:motion class="flex-1 p-6 bg-base-200">
           {#if mode === 'text'}
-            <div class="max-w-4xl mx-auto bg-base-100 rounded-lg shadow-md">
+            <div class="max-w-4xl mx-auto bg-base-100 rounded-lg shadow-md max-h-40">
               <div bind:this={element} class="w-full" />
             </div>
           {:else}

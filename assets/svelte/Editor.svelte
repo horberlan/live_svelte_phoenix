@@ -115,7 +115,6 @@
   }
 
   function getUserThemeColor(id) {
-    // Cores baseadas no tema DaisyUI (Primary, Secondary, Accent, Info, Success, Warning, Error)
     const themeVars = [
       'hsl(var(--p))', 
       'hsl(var(--s))', 

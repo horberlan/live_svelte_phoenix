@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte'
   import NoteInput from './NoteInput.svelte'
+  import HomeEditor from './HomeEditor.svelte'
   export let user_sessions = []
   export let live
 
@@ -232,7 +233,8 @@
 </script>
 
 <div class="w-full p-4">
-  <NoteInput {live} />
+  <!-- <NoteInput {live} /> -->
+  <HomeEditor {live} />
   {#if !corrected_sessions || corrected_sessions.length === 0}
     <div
       class="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5 gap-4"
@@ -296,8 +298,8 @@
             >
               <div class="card-body p-4">
                 {#if session.shared_users && session.shared_users.length > 0}
-                  <div class="flex items-start justify-between gap-2 mb-2">
-                    <div class="badge badge-secondary badge-sm gap-1">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="badge badge-secondary badge-xs gap-1 py-2">
                       {i18n.shared}
                     </div>
                   </div>

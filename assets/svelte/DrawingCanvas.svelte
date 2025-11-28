@@ -22,10 +22,8 @@
   let strokeLimitWarningShown = false
   let clearDisabled = false
 
-  // Redo stack (stores strokes that were undone)
   let redoStack = []
 
-  // Opções de espessura para o dropdown
   const strokeWidthOptions = [2, 3, 5, 8, 12]
 
   const colors = [
@@ -39,9 +37,7 @@
 
   const grids = {
     none: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon icon-tabler icons-tabler-filled icon-tabler-columns-1"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 2a2 2 0 0 1 2 2v16a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-16a2 2 0 0 1 2 -2z" /></svg>`,
-
     dots: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-grid-dots"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M19 5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M5 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M19 12m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M5 19m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M12 19m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M19 19m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /></svg>`,
-
     frame: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-grid-4x4"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" /><path d="M6 3v18" /><path d="M12 3v18" /><path d="M18 3v18" /></svg>`,
   }
 
@@ -79,7 +75,7 @@
       const h3 = live.handleEvent('load_strokes', (data) => {
         const incoming = data.strokes || []
         localStrokes = incoming.map(normalizeStroke)
-        if (ctx) setTimeout(() => redrawAll(), 50)
+        if (ctx) redrawAll()
       })
 
       const h4 = live.handleEvent('stroke_undone', () => {
@@ -273,7 +269,6 @@
   function handleClear() {
     if (clearDisabled) return
 
-    // Clear redo stack on clear action
     redoStack = []
 
     localStrokes = []
@@ -430,8 +425,9 @@
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              class="opacity-50"><path d="m6 9 6 6 6-6" /></svg
-            >
+              class="opacity-50"
+              ><path d="m6 9 6 6 6-6" />
+            </svg>
           </button>
           <ul
             class="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-32 border border-base-200"
@@ -586,11 +582,11 @@
   .drawing-canvas {
     touch-action: none;
   }
-  .drawing-canvas_grid-none {
-  }
   .drawing-canvas_grid-dots {
     background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
     background-size: 20px 20px;
+  }
+  .drawing-canvas_grid-none {
   }
   .drawing-canvas_grid-frame {
   }

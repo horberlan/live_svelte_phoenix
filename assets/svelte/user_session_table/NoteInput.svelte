@@ -39,6 +39,9 @@
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
   })
+  const intl = {
+    inputPlaceholder: "What about today?"
+  }
 </script>
 
 <div class="w-full px-4">
@@ -47,7 +50,7 @@
       <div class="relative join-item">
         <input
           type="text"
-          placeholder="Take a note..."
+          placeholder={intl.inputPlaceholder}
           class="input input-bordered join-item flex-grow bg-base-200 text-base-content border-base-300 min-w-[400px]"
           bind:value={note}
           bind:this={inputEl}

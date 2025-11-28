@@ -17,7 +17,6 @@ defmodule LiveSveltePheonixWeb.SessionLive do
 
   @impl true
   def render(assigns) do
-    IO.puts("[SessionLive] render called - strokes: #{length(assigns.drawing_strokes)}, version: #{assigns.drawing_strokes_version}, drawing_mode: #{assigns.drawing_mode}")
     ~H"""
     <main class="container p-2 rounded-md min-w-[100vw] bg-base-200 mb-4">
       <div class="flex flex-wrap justify-between">
@@ -29,7 +28,6 @@ defmodule LiveSveltePheonixWeb.SessionLive do
         <.svelte
           name="DrawingCanvas"
           socket={@socket}
-          id={"drawing-canvas-#{@session_id}"}
         />
         <!-- Debug: strokes count = <%= length(@drawing_strokes) %>, version = <%= @drawing_strokes_version %> -->
       <% else %>
@@ -87,11 +85,14 @@ defmodule LiveSveltePheonixWeb.SessionLive do
   end
 
   @impl true
-  def mount(%{"session_id" => session_id}, session_data, socket) do
-    # Ensure the session exists in the database
-    get_or_create_session(session_id, session_data)
+  def mount(%{"session_id" => session_id} = params, session_data, socket) do
+    drawing_mode_param = Map.get(params, "drawing") == "true"
+
+    # Fetch the session from the database
+    session = get_or_create_session(session_id, session_data)
 
     # Start the document GenServer if it's not already running
+    # The CollaborativeDocument will load persisted content from the database automatically
     DocumentSupervisor.start_document(session_id)
 
     # Subscribe this LiveView to the document's updates
@@ -101,32 +102,28 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     user_id = if current_user, do: "user-#{current_user.id}", else: "anonymous-#{:rand.uniform(1000)}"
     user_name = if current_user, do: current_user.email, else: user_id
 
+    # Load initial content from database (HTML format for first-time initialization)
+    # If ydoc exists, it takes precedence and content will be loaded by Yjs
+    initial_content = if session.ydoc && byte_size(session.ydoc) > 0 do
+      ""  # Yjs will load from ydoc
+    else
+      Session.get_html_content(session, "")
+    end
+
     # Load background color from database
     background_color = Session.get_background_color(session_id)
 
     # Load existing strokes from database
-    IO.puts("[SessionLive] ========== LOADING STROKES ==========")
-    IO.puts("[SessionLive] Session ID: #{session_id}")
-
     strokes = case Drawing.list_strokes_by_session(session_id) do
       {:ok, strokes} ->
-        IO.puts("[SessionLive] Loaded #{length(strokes)} strokes for session #{session_id}")
-
         # Convert Ecto structs to simple maps for Svelte
-        serialized_strokes = Enum.map(strokes, fn stroke ->
+        Enum.map(strokes, fn stroke ->
           %{
             path_data: stroke.path_data,
             color: stroke.color,
             stroke_width: stroke.stroke_width
           }
         end)
-
-        if length(serialized_strokes) > 0 do
-          IO.puts("[SessionLive] First stroke preview:")
-          IO.inspect(List.first(serialized_strokes), label: "  First stroke")
-        end
-
-        serialized_strokes
       {:error, reason} ->
         require Logger
         Logger.error("Failed to load strokes for session #{session_id}: #{inspect(reason)}")
@@ -137,7 +134,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
       socket
       |> assign(:session_id, session_id)
       |> assign(:page_title, "Note #{session_id}")
-      |> assign(:content, "") # Content is loaded by Yjs
+      |> assign(:content, initial_content)
       |> assign(:socket_id, socket.id)
       |> assign(:user_id, user_id)
       |> assign(:user_name, user_name)
@@ -145,7 +142,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
       |> assign(:background_color, background_color)
       |> assign(:drawing_strokes, strokes)
       |> assign(:drawing_strokes_version, 0)
-      |> assign(:drawing_mode, false)
+      |> assign(:drawing_mode, drawing_mode_param)
 
     if connected?(socket) do
       # Subscribe to cursor updates
@@ -491,7 +488,7 @@ defmodule LiveSveltePheonixWeb.SessionLive do
     }
   end
 
-  defp create_and_broadcast_stroke(socket, session_id, user_id, path, color, stroke_width \\ 2.0) do
+  defp create_and_broadcast_stroke(socket, session_id, user_id, path, color, stroke_width) do
     IO.puts("[SessionLive] Creating stroke - session: #{session_id}, user: #{user_id}, width: #{stroke_width}")
 
     case Drawing.create_stroke(%{

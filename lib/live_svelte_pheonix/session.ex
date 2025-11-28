@@ -10,6 +10,7 @@ defmodule LiveSveltePheonix.Session do
     field :shared_users, {:array, :string}
     field :ydoc, :binary
     field :background_color, :string
+    field :mode, :string, default: "text"
 
     # ADICIONADO: Campo para salvar a ordem
     field :position, :integer, default: 0
@@ -28,7 +29,8 @@ defmodule LiveSveltePheonix.Session do
       :user_id,
       :position,
       :ydoc,
-      :background_color
+      :background_color,
+      :mode
     ])
     |> validate_required([:session_id, :user_id])
   end
@@ -142,6 +144,7 @@ Protocol.derive(
     :user_id,
     :inserted_at,
     :updated_at,
-    :position # ADICIONADO: Para que o campo seja serializado em JSON
+    :position,
+    :mode
   ]
 )

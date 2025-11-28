@@ -9,13 +9,15 @@ defmodule LiveSveltePheonixWeb.CreateSession do
 
   def render(assigns) do
     ~H"""
-    <.svelte name="NewSession" socket={@socket} props={%{current_user: @current_user}}>
+    <!--
+      <.svelte name="NewSession" socket={@socket} props={%{current_user: @current_user}}>
+      </.svelte>
+    -->
       <.svelte
         name="user_session_table/UserSessionTable"
         socket={@socket}
         props={%{user_sessions: @user_sessions}}
       />
-    </.svelte>
     """
   end
 
@@ -36,6 +38,40 @@ defmodule LiveSveltePheonixWeb.CreateSession do
     {:noreply, assign(socket, :user_sessions, new_user_sessions)}
   end
 
+  def handle_event("create_session_with_content", %{"content" => content, "mode" => mode}, %{assigns: %{current_user: user}} = socket) do
+    with :ok <- validate_content(content),
+         :ok <- validate_mode(mode),
+         session_id <- generate_session_id(),
+         sanitized_content <- sanitize_content(content),
+         {:ok, _session} <- create_session(user, session_id, sanitized_content, mode) do
+      Cache.invalidate_user_sessions(user.email)
+      navigate_to_session(socket, session_id, mode)
+    else
+      {:error, :invalid_content} ->
+        {:noreply, put_flash(socket, :error, "Invalid content")}
+      {:error, :content_too_large} ->
+        {:noreply, put_flash(socket, :error, "Content is too large")}
+      {:error, :invalid_mode} ->
+        {:noreply, put_flash(socket, :error, "Invalid mode")}
+      {:error, reason} ->
+        require Logger
+        Logger.error("Failed to create session: #{inspect(reason)}")
+        {:noreply, put_flash(socket, :error, "Failed to create session. Please try again.")}
+    end
+  end
+
+   def handle_event("new_session_from_editor", _params, %{assigns: %{current_user: user, content_editor: content}} = socket) do
+    session_id = :crypto.strong_rand_bytes(32) |> Base.encode32() # This event handler seems to be unused now, but we'll fix it anyway.
+
+    case create_session(user, session_id, content) do
+      {:ok, _} ->
+        # Invalidate cache after creating new session
+        Cache.invalidate_user_sessions(user.email)
+        push_to_session(session_id, socket)
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to create session")}
+    end
+  end
+
   def handle_event("new_session", _params, %{assigns: %{current_user: user}} = socket) do
     session_id = :crypto.strong_rand_bytes(32) |> Base.encode32()
 
@@ -48,23 +84,21 @@ defmodule LiveSveltePheonixWeb.CreateSession do
     end
   end
 
-  defp create_session(user, session_id) do
+  defp create_session(user, session_id, content_editor, mode \\ "text") do
     Repo.transaction(fn ->
-      # ATUALIZADO: Encontrar a maior posição atual para colocar a nova no final
       max_pos_query = from(s in Session, where: s.user_id == ^user.id, select: max(s.position))
       current_max_pos = Repo.one(max_pos_query) || -1
       new_position = current_max_pos + 1
 
-      session_changeset =
-        %Session{
+      attrs = %{
           user_id: user.id,
           session_id: session_id,
-          content: nil,
-          shared_users: [],
-          position: new_position
+          content: content_editor,
+          position: new_position,
+          mode: mode
         }
-        |> Session.changeset(%{})
 
+      session_changeset = %Session{} |> Session.changeset(attrs)
       case Repo.insert(session_changeset) do
         {:ok, session} ->
           user_changeset = Ecto.Changeset.change(user, active_session: session_id)
@@ -82,6 +116,41 @@ defmodule LiveSveltePheonixWeb.CreateSession do
       {:ok, session} -> {:ok, session}
       {:error, reason} -> {:error, "Failed to create session: #{reason}"}
     end
+  end
+
+  # Delegate create_session/2 to create_session/4 with default values
+  defp create_session(user, session_id), do: create_session(user, session_id, nil, "text")
+
+  # Validation helpers
+  defp validate_content(content) when is_binary(content) do
+    cond do
+      String.trim(content) == "" -> {:error, :invalid_content}
+      byte_size(content) > 1_000_000 -> {:error, :content_too_large}
+      true -> :ok
+    end
+  end
+  defp validate_content(_), do: :ok  # Allow nil for drawing mode
+
+  defp validate_mode(mode) when mode in ["text", "drawing"], do: :ok
+  defp validate_mode(_), do: {:error, :invalid_mode}
+
+  defp generate_session_id do
+    :crypto.strong_rand_bytes(32) |> Base.encode32()
+  end
+
+  defp sanitize_content(nil), do: nil
+  defp sanitize_content(content) when is_binary(content) do
+    # Basic HTML sanitization - remove script tags and dangerous attributes
+    content
+    |> String.replace(~r/<script[^>]*>.*?<\/script>/is, "")
+    |> String.replace(~r/on\w+\s*=\s*["'][^"']*["']/i, "")
+  end
+
+  defp navigate_to_session(socket, session_id, "drawing") do
+    {:noreply, push_navigate(socket, to: "/session/#{session_id}?drawing=true")}
+  end
+  defp navigate_to_session(socket, session_id, _mode) do
+    {:noreply, push_navigate(socket, to: "/session/#{session_id}")}
   end
 
   def user_sessions(user_email) do
